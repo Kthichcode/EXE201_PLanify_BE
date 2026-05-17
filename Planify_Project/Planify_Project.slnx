@@ -1,1 +1,6 @@
-<Solution />
+<Solution>
+  <Project Path="Planify.API/Planify.API.csproj" Id="e7c29e55-3001-4794-a9bb-cd564bd52a81" />
+  <Project Path="Planify.Application/Planify.Application.csproj" Id="8e3b343b-db3f-400e-a500-22e834a4d1b3" />
+  <Project Path="Planify.Domain/Planify.Domain.csproj" Id="72770817-3fdd-4a52-9e66-6844081a77b9" />
+  <Project Path="Planify.Infrastructure/Planify.Infrastructure.csproj" Id="e16b94e7-d838-4442-a1d9-d83fe2df7205" />
+</Solution>
