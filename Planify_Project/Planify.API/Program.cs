@@ -6,6 +6,19 @@ using Planify.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// CORS configuration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowVite",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        });
+});
+
 // Controllers
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -92,6 +105,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowVite");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
