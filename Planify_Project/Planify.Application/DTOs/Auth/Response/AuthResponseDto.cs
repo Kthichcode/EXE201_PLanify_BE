@@ -1,4 +1,4 @@
-namespace Planify.Application.DTOs.Auth;
+namespace Planify.Application.DTOs.Auth.Response;
 
 public class AuthResponseDto
 {
