@@ -1,6 +1,6 @@
-namespace Planify.Application.DTOs.Auth;
+namespace Planify.Application.DTOs.Auth.Request;
 
-public class RegisterDto
+public class RegisterRequestDto
 {
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
