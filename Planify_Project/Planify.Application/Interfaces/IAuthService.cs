@@ -10,4 +10,5 @@ public interface IAuthService
     Task<ResponseDto<TokenResponseDto>> LoginAsync(LoginRequestDto dto);
     Task<ResponseDto<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto dto);
     Task<ResponseDto<object>> LogoutAsync(RefreshTokenRequestDto dto);
+    Task<ResponseDto<TokenResponseDto>> GoogleLoginAsync(GoogleLoginRequestDto dto);
 }

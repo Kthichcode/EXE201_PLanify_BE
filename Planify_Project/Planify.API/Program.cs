@@ -91,6 +91,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+// Serve static files (google-login-test.html, etc.)
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -35,6 +35,7 @@ public static class DependencyInjection
         // Services
         services.AddScoped<TokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }

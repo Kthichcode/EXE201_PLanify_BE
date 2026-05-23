@@ -63,4 +63,15 @@ public class AuthController : ControllerBase
         var response = await _authService.LogoutAsync(dto);
         return StatusCode(response.StatusCode, response);
     }
+
+    /// <summary>Đăng nhập bằng tài khoản Google</summary>
+    /// <param name="dto">Google ID Token lấy từ Google Sign-In SDK phía client</param>
+    [HttpPost("google-login")]
+    [ProducesResponseType(typeof(ResponseDto<TokenResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ResponseDto<TokenResponseDto>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequestDto dto)
+    {
+        var response = await _authService.GoogleLoginAsync(dto);
+        return StatusCode(response.StatusCode, response);
+    }
 }
