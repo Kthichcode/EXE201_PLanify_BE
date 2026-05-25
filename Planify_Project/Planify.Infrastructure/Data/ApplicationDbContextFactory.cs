@@ -12,7 +12,7 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
         optionsBuilder.UseSqlServer(
-            "server=.\\SQLEXPRESS; database=PlanifyDb; uid=sa; pwd=12345; TrustServerCertificate=True;");
+              "Server=LAPTOP-K4A4HIQ9;Database=PlanifyDb;User Id=sa;Password=12345;TrustServerCertificate=True");
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }
