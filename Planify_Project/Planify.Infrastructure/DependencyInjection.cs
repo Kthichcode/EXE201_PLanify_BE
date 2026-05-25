@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+susing Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +20,7 @@ public static class DependencyInjection
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
         // ASP.NET Identity
-        services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+        services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
         {
             options.Password.RequireDigit = true;
             options.Password.RequireLowercase = true;
@@ -35,7 +35,7 @@ public static class DependencyInjection
         // Services
         services.AddScoped<TokenService>();
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IPlanService, PlanService>();
 
         return services;
     }
