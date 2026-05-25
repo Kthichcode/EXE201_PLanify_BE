@@ -99,4 +99,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Seed initial data (roles + admin user)
+await Planify.Infrastructure.Data.DataSeeder.SeedAsync(app.Services);
+
 app.Run();
