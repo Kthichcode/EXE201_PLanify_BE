@@ -15,6 +15,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanTask> PlanTasks => Set<PlanTask>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -53,6 +54,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(e => e.Title).IsRequired().HasMaxLength(255);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Priority).IsRequired().HasMaxLength(20);
+        });
+
+        builder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Token).IsRequired();
+            entity.Property(e => e.UserId).IsRequired();
         });
     }
 }
