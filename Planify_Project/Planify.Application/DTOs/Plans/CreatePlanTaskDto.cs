@@ -8,6 +8,8 @@ public class CreatePlanTaskDto
     [Required]
     public string Title { get; set; } = string.Empty;
     
+    public Guid? ParentTaskId { get; set; }
+    
     public string? Description { get; set; }
     
     [RegularExpression("^(high|medium|low)$", ErrorMessage = "Priority must be 'high', 'medium', or 'low'.")]

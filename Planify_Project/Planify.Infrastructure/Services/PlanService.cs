@@ -52,9 +52,19 @@ public class PlanService : IPlanService
             throw new Exception("Plan not found or you do not have permission to access it.");
         }
 
+        if (dto.ParentTaskId.HasValue)
+        {
+            var parentExists = await _context.PlanTasks.AnyAsync(t => t.Id == dto.ParentTaskId.Value && t.PlanId == plan.Id);
+            if (!parentExists)
+            {
+                throw new Exception("Parent task not found in this plan.");
+            }
+        }
+
         var planTask = new PlanTask
         {
             PlanId = plan.Id,
+            ParentTaskId = dto.ParentTaskId,
             Title = dto.Title,
             Description = dto.Description,
             Priority = dto.Priority ?? "medium",
@@ -123,23 +133,47 @@ public class PlanService : IPlanService
             SortOrder = plan.SortOrder,
             CreatedAt = plan.CreatedAt,
             UpdatedAt = plan.UpdatedAt,
-            Tasks = plan.Tasks?.Select(t => new PlanTaskDto
-            {
-                Id = t.Id,
-                PlanId = t.PlanId,
-                ParentTaskId = t.ParentTaskId,
-                Title = t.Title,
-                Description = t.Description,
-                Status = t.Status,
-                Priority = t.Priority,
-                StartDate = t.StartDate,
-                DueDate = t.DueDate,
-                CompletedAt = t.CompletedAt,
-                Progress = t.Progress,
-                OrderIndex = t.OrderIndex,
-                CreatedAt = t.CreatedAt,
-                UpdatedAt = t.UpdatedAt
-            }).ToList() ?? new System.Collections.Generic.List<PlanTaskDto>()
+            Tasks = BuildTaskTree(plan.Tasks)
         };
+    }
+
+    private System.Collections.Generic.List<PlanTaskDto> BuildTaskTree(System.Collections.Generic.ICollection<PlanTask>? tasks)
+    {
+        if (tasks == null || !tasks.Any()) return new System.Collections.Generic.List<PlanTaskDto>();
+
+        var allTaskDtos = tasks.Select(t => new PlanTaskDto
+        {
+            Id = t.Id,
+            PlanId = t.PlanId,
+            ParentTaskId = t.ParentTaskId,
+            Title = t.Title,
+            Description = t.Description,
+            Status = t.Status,
+            Priority = t.Priority,
+            StartDate = t.StartDate,
+            DueDate = t.DueDate,
+            CompletedAt = t.CompletedAt,
+            Progress = t.Progress,
+            OrderIndex = t.OrderIndex,
+            CreatedAt = t.CreatedAt,
+            UpdatedAt = t.UpdatedAt
+        }).ToList();
+
+        var dict = allTaskDtos.ToDictionary(t => t.Id);
+        var rootTasks = new System.Collections.Generic.List<PlanTaskDto>();
+
+        foreach (var task in allTaskDtos.OrderBy(t => t.OrderIndex))
+        {
+            if (task.ParentTaskId.HasValue && dict.TryGetValue(task.ParentTaskId.Value, out var parent))
+            {
+                parent.SubTasks.Add(task);
+            }
+            else
+            {
+                rootTasks.Add(task);
+            }
+        }
+
+        return rootTasks;
     }
 }
