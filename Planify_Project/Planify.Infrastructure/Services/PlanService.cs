@@ -80,6 +80,8 @@ public class PlanService : IPlanService
         _context.PlanTasks.Add(planTask);
         await _context.SaveChangesAsync();
 
+        await RecalculatePlanProgressAsync(plan.Id);
+
         return new PlanTaskDto
         {
             Id = planTask.Id,
@@ -97,6 +99,94 @@ public class PlanService : IPlanService
             CreatedAt = planTask.CreatedAt,
             UpdatedAt = planTask.UpdatedAt
         };
+    }
+
+    public async Task<PlanTaskDto> UpdateTaskStatusAsync(Guid planId, Guid taskId, UpdateTaskStatusDto dto, Guid userId)
+    {
+        var plan = await _context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+        if (plan == null) throw new Exception("Plan not found or access denied.");
+
+        var task = await _context.PlanTasks.FirstOrDefaultAsync(t => t.Id == taskId && t.PlanId == planId);
+        if (task == null) throw new Exception("Task not found.");
+
+        task.Status = dto.Status;
+        if (dto.Status == "done")
+        {
+            task.Progress = 100;
+            task.CompletedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            if (task.Progress == 100) task.Progress = 0;
+            task.CompletedAt = null;
+        }
+        task.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        await RecalculatePlanProgressAsync(planId);
+
+        return new PlanTaskDto
+        {
+            Id = task.Id,
+            PlanId = task.PlanId,
+            ParentTaskId = task.ParentTaskId,
+            Title = task.Title,
+            Description = task.Description,
+            Status = task.Status,
+            Priority = task.Priority,
+            StartDate = task.StartDate,
+            DueDate = task.DueDate,
+            CompletedAt = task.CompletedAt,
+            Progress = task.Progress,
+            OrderIndex = task.OrderIndex,
+            CreatedAt = task.CreatedAt,
+            UpdatedAt = task.UpdatedAt
+        };
+    }
+
+    private async Task RecalculatePlanProgressAsync(Guid planId)
+    {
+        var plan = await _context.Plans.Include(p => p.Tasks).FirstOrDefaultAsync(p => p.Id == planId);
+        if (plan == null) return;
+
+        var tasks = plan.Tasks;
+        if (tasks == null || !tasks.Any())
+        {
+            plan.Progress = 0;
+            await _context.SaveChangesAsync();
+            return;
+        }
+
+        var level1Tasks = tasks.Where(t => t.ParentTaskId == null).ToList();
+        var subtasks = tasks.Where(t => t.ParentTaskId != null).ToList();
+
+        foreach (var parent in level1Tasks)
+        {
+            var children = subtasks.Where(t => t.ParentTaskId == parent.Id).ToList();
+            if (children.Any())
+            {
+                parent.Progress = (int)children.Average(c => c.Progress);
+                if (parent.Progress == 100 && parent.Status != "done")
+                {
+                    parent.Status = "done";
+                    parent.CompletedAt = DateTime.UtcNow;
+                }
+                else if (parent.Progress < 100 && parent.Status == "done")
+                {
+                    parent.Status = "in_progress";
+                    parent.CompletedAt = null;
+                }
+            }
+        }
+
+        if (level1Tasks.Any())
+        {
+            plan.Progress = (int)level1Tasks.Average(t => t.Progress);
+            if (plan.Progress == 100 && plan.Status != "done") plan.Status = "done";
+            else if (plan.Progress < 100 && plan.Status == "done") plan.Status = "in_progress";
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     public async Task<PlanDto?> GetPlanByIdAsync(Guid planId, Guid userId)

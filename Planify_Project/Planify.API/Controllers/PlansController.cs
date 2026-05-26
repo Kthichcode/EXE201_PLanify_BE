@@ -75,6 +75,32 @@ public class PlansController : ControllerBase
         }
     }
 
+    [HttpPut("{planId}/tasks/{taskId}/status")]
+    public async Task<IActionResult> UpdateTaskStatus(Guid planId, Guid taskId, [FromBody] UpdateTaskStatusDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+        {
+            return Unauthorized("User ID not found or invalid.");
+        }
+
+        try
+        {
+            var task = await _planService.UpdateTaskStatusAsync(planId, taskId, dto, userId);
+            return Ok(task);
+        }
+        catch (Exception ex)
+        {
+            if (ex.Message.Contains("not found") || ex.Message.Contains("access denied"))
+            {
+                return NotFound(ex.Message);
+            }
+            return StatusCode(500, "An error occurred while updating the task status. " + ex.Message);
+        }
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPlan(Guid id)
     {
