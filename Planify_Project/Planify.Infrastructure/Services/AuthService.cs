@@ -158,7 +158,8 @@ public class AuthService : IAuthService
 
     private async Task<TokenResponseDto> BuildTokenResponseAsync(ApplicationUser user)
     {
-        var (accessToken, accessExpiration) = _tokenService.GenerateAccessToken(user);
+        var roles = await _userManager.GetRolesAsync(user);
+        var (accessToken, accessExpiration) = _tokenService.GenerateAccessToken(user, roles);
         var (refreshToken, refreshExpiration) = _tokenService.GenerateRefreshToken();
 
         // Lưu refresh token vào DB

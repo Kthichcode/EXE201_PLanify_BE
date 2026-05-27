@@ -16,6 +16,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanTask> PlanTasks => Set<PlanTask>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+    public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -70,6 +73,44 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Token).IsRequired();
             entity.Property(e => e.UserId).IsRequired();
+        });
+
+        builder.Entity<SubscriptionPlan>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.BillingCycle).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Price).HasPrecision(18, 2);
+        });
+
+        builder.Entity<UserSubscription>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Plan)
+                .WithMany()
+                .HasForeignKey(e => e.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+        });
+
+        builder.Entity<PaymentTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Subscription)
+                .WithMany()
+                .HasForeignKey(e => e.SubscriptionId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Currency).IsRequired().HasMaxLength(10);
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
         });
     }
 }
