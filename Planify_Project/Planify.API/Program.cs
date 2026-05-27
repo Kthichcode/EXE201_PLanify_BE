@@ -1,8 +1,10 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Planify.Infrastructure;
+using System.Text;
+using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +96,21 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
+
+
+var cs = builder.Configuration.GetConnectionString("DefaultConnection");
+
+try
+{
+    using var con = new SqlConnection(cs);
+    con.Open();
+    Console.WriteLine("SQL CONNECT OK");
+}
+catch (Exception ex)
+{
+    Console.WriteLine(ex.Message);
+}
+
 // Pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -112,5 +129,8 @@ app.UseCors("AllowVite");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Seed initial data (roles + admin user)
+await Planify.Infrastructure.Data.DataSeeder.SeedAsync(app.Services);
 
 app.Run();

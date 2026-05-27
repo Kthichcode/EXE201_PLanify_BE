@@ -84,7 +84,7 @@ public class AuthService : IAuthService
         if (storedToken.ExpiresAt < DateTime.UtcNow)
             return ResponseDto<TokenResponseDto>.Fail("Refresh token đã hết hạn.", 401);
 
-        var user = await _userManager.FindByIdAsync(storedToken.UserId);
+        var user = await _userManager.FindByIdAsync(storedToken.UserId.ToString());
         if (user == null)
             return ResponseDto<TokenResponseDto>.Fail("Người dùng không tồn tại.", 401);
 
@@ -183,3 +183,6 @@ public class AuthService : IAuthService
         };
     }
 }
+
+//Datchyms
+//Datchyms
