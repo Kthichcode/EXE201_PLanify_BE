@@ -195,12 +195,20 @@ public class PlanService : IPlanService
             .Include(p => p.Tasks)
             .FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
 
-        if (plan == null)
-        {
-            return null;
-        }
+        if (plan == null) return null;
 
         return MapToDto(plan);
+    }
+
+    public async Task<System.Collections.Generic.List<PlanDto>> GetPlansByUserIdAsync(Guid userId)
+    {
+        var plans = await _context.Plans
+            .Include(p => p.Tasks)
+            .Where(p => p.UserId == userId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        return plans.Select(MapToDto).ToList();
     }
 
     private PlanDto MapToDto(Plan plan)
