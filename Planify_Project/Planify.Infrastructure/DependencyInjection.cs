@@ -39,6 +39,14 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
 
+        // Ollama AI Chat Service
+        var ollamaBaseUrl = configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
+        services.AddHttpClient<IAiChatService, OllamaAiChatService>(client =>
+        {
+            client.BaseAddress = new Uri(ollamaBaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(300); // llama3 có thể mất 2-5 phút trên máy thường
+        });
+
         return services;
     }
 }

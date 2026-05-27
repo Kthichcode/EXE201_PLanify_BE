@@ -575,7 +575,7 @@ namespace Planify.Infrastructure.Migrations
                     b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Subscription");
