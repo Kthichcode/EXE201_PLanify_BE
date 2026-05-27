@@ -118,4 +118,17 @@ public class PlansController : ControllerBase
 
         return Ok(plan);
     }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPlans()
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+        {
+            return Unauthorized("User ID not found or invalid.");
+        }
+
+        var plans = await _planService.GetPlansByUserIdAsync(userId);
+        return Ok(plans);
+    }
 }
