@@ -1,3 +1,4 @@
+using Planify.Application.DTOs.AI;
 using Planify.Application.DTOs.Plans;
 using Planify.Application.Interfaces;
 using Planify.Domain.Entities;
@@ -207,23 +208,24 @@ public class PlanService : IPlanService
     {
         return new PlanDto
         {
-            Id = plan.Id,
-            UserId = plan.UserId,
-            TemplateId = plan.TemplateId,
-            FrameworkId = plan.FrameworkId,
-            CategoryId = plan.CategoryId,
-            Title = plan.Title,
-            Description = plan.Description,
-            Goal = plan.Goal,
-            Status = plan.Status,
-            IsPublic = plan.IsPublic,
-            Deadline = plan.Deadline,
-            Progress = plan.Progress,
+            Id            = plan.Id,
+            UserId        = plan.UserId,
+            TemplateId    = plan.TemplateId,
+            FrameworkId   = plan.FrameworkId,
+            CategoryId    = plan.CategoryId,
+            Title         = plan.Title,
+            Description   = plan.Description,
+            Goal          = plan.Goal,
+            Status        = plan.Status,
+            IsPublic      = plan.IsPublic,
+            Deadline      = plan.Deadline,
+            Progress      = plan.Progress,
             IsAIGenerated = plan.IsAIGenerated,
-            SortOrder = plan.SortOrder,
-            CreatedAt = plan.CreatedAt,
-            UpdatedAt = plan.UpdatedAt,
-            Tasks = BuildTaskTree(plan.Tasks)
+            SortOrder     = plan.SortOrder,
+            DraftExpiresAt = plan.DraftExpiresAt,
+            CreatedAt     = plan.CreatedAt,
+            UpdatedAt     = plan.UpdatedAt,
+            Tasks         = BuildTaskTree(plan.Tasks)
         };
     }
 
@@ -265,5 +267,180 @@ public class PlanService : IPlanService
         }
 
         return rootTasks;
+    }
+    // ── SaveAiPlanAsDraftAsync ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Parse planData JSON từ AI → lưu Plan + Tasks + Subtasks vào DB với Status = "draft".
+    /// Draft tự động hết hạn sau 24 giờ.
+    /// </summary>
+    public async Task<PlanDto> SaveAiPlanAsDraftAsync(SaveAiPlanRequestDto dto, Guid userId)
+    {
+        var planData = dto.PlanData;
+
+        // ── 1. Parse Plan ─────────────────────────────────────────────────
+        var planNode = planData["plan"]
+            ?? throw new InvalidOperationException("planData thiếu trường 'plan'.");
+
+        DateTime? deadline = null;
+        if (planNode["Deadline"]?.GetValue<string>() is { } dl && !string.IsNullOrWhiteSpace(dl))
+            deadline = DateTime.Parse(dl);
+
+        var plan = new Plan
+        {
+            UserId         = userId,
+            Title          = planNode["Title"]?.GetValue<string>() ?? "Kế hoạch AI",
+            Description    = planNode["Description"]?.GetValue<string>(),
+            Goal           = planNode["Goal"]?.GetValue<string>(),
+            Deadline       = deadline,
+            Status         = "draft",                                     // ← DRAFT
+            Progress       = 0,
+            IsAIGenerated  = true,
+            IsPublic       = planNode["IsPublic"]?.GetValue<bool>() ?? false,
+            DraftExpiresAt = DateTime.UtcNow.AddHours(24),               // ← hết hạn sau 24h
+            CreatedAt      = DateTime.UtcNow,
+            UpdatedAt      = DateTime.UtcNow
+        };
+
+        // ── 2. Parse Tasks & Subtasks ──────────────────────────────────────
+        var taskNodes = planData["tasks"]?.AsArray()
+            ?? throw new InvalidOperationException("planData thiếu trường 'tasks'.");
+
+        var planTasks = new List<PlanTask>();
+
+        foreach (var taskNode in taskNodes)
+        {
+            if (taskNode is null) continue;
+
+            var task = new PlanTask
+            {
+                Title       = taskNode["Title"]?.GetValue<string>() ?? "Task",
+                Description = taskNode["Description"]?.GetValue<string>(),
+                Priority    = taskNode["Priority"]?.GetValue<string>() ?? "medium",
+                Status      = "todo",
+                StartDate   = ParseDate(taskNode["StartDate"]?.GetValue<string>()),
+                DueDate     = ParseDate(taskNode["DueDate"]?.GetValue<string>()),
+                Progress    = 0,
+                OrderIndex  = taskNode["OrderIndex"]?.GetValue<int>() ?? 0,
+                CreatedAt   = DateTime.UtcNow,
+                UpdatedAt   = DateTime.UtcNow
+            };
+
+            var subtaskNodes = taskNode["subtasks"]?.AsArray();
+            if (subtaskNodes is not null)
+            {
+                foreach (var stNode in subtaskNodes)
+                {
+                    if (stNode is null) continue;
+                    task.SubTasks.Add(new PlanTask
+                    {
+                        Title       = stNode["Title"]?.GetValue<string>() ?? "Subtask",
+                        Description = stNode["Description"]?.GetValue<string>(),
+                        Priority    = stNode["Priority"]?.GetValue<string>() ?? "medium",
+                        Status      = "todo",
+                        StartDate   = ParseDate(stNode["StartDate"]?.GetValue<string>()),
+                        DueDate     = ParseDate(stNode["DueDate"]?.GetValue<string>()),
+                        Progress    = 0,
+                        OrderIndex  = stNode["OrderIndex"]?.GetValue<int>() ?? 0,
+                        CreatedAt   = DateTime.UtcNow,
+                        UpdatedAt   = DateTime.UtcNow
+                    });
+                }
+            }
+
+            planTasks.Add(task);
+        }
+
+        // ── 3. Lưu vào DB trong 1 transaction ─────────────────────────────
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            _context.Plans.Add(plan);
+            await _context.SaveChangesAsync();
+
+            foreach (var task in planTasks)
+            {
+                task.PlanId = plan.Id;
+                var subtasks = task.SubTasks.ToList();
+                task.SubTasks.Clear();
+
+                _context.PlanTasks.Add(task);
+                await _context.SaveChangesAsync();
+
+                foreach (var st in subtasks)
+                {
+                    st.PlanId       = plan.Id;
+                    st.ParentTaskId = task.Id;
+                    _context.PlanTasks.Add(st);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+
+        var saved = await _context.Plans
+            .Include(p => p.Tasks)
+            .FirstAsync(p => p.Id == plan.Id);
+
+        return MapToDto(saved);
+    }
+
+    // ── ConfirmDraftPlanAsync ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Xác nhận kế hoạch draft → chuyển Status = "active", xóa DraftExpiresAt.
+    /// </summary>
+    public async Task<PlanDto> ConfirmDraftPlanAsync(Guid planId, Guid userId)
+    {
+        var plan = await _context.Plans
+            .Include(p => p.Tasks)
+            .FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+
+        if (plan is null)
+            throw new KeyNotFoundException("Không tìm thấy kế hoạch hoặc bạn không có quyền truy cập.");
+
+        if (plan.Status != "draft")
+            throw new InvalidOperationException($"Kế hoạch không ở trạng thái draft (hiện tại: {plan.Status}).");
+
+        plan.Status        = "active";
+        plan.DraftExpiresAt = null;
+        plan.UpdatedAt     = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        return MapToDto(plan);
+    }
+
+    // ── DiscardDraftPlanAsync ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Người dùng chủ động hủy bản draft → xóa vĩnh viễn khỏi DB.
+    /// </summary>
+    public async Task DiscardDraftPlanAsync(Guid planId, Guid userId)
+    {
+        var plan = await _context.Plans
+            .FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+
+        if (plan is null)
+            throw new KeyNotFoundException("Không tìm thấy kế hoạch.");
+
+        if (plan.Status != "draft")
+            throw new InvalidOperationException("Chỉ có thể xóa kế hoạch ở trạng thái draft.");
+
+        _context.Plans.Remove(plan);
+        await _context.SaveChangesAsync();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static DateTime? ParseDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return DateTime.TryParse(value, out var d) ? d : null;
     }
 }

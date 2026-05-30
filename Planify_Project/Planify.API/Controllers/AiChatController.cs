@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planify.Application.DTOs.AI;
 using Planify.Application.Interfaces;
+using System.Security.Claims;
 
 namespace Planify.API.Controllers;
 
@@ -11,29 +12,28 @@ namespace Planify.API.Controllers;
 public class AiChatController : ControllerBase
 {
     private readonly IAiChatService _aiChatService;
+    private readonly IPlanService _planService;
     private readonly ILogger<AiChatController> _logger;
 
-    public AiChatController(IAiChatService aiChatService, ILogger<AiChatController> logger)
+    public AiChatController(
+        IAiChatService aiChatService,
+        IPlanService planService,
+        ILogger<AiChatController> logger)
     {
         _aiChatService = aiChatService;
-        _logger = logger;
+        _planService   = planService;
+        _logger        = logger;
     }
 
-    /// <summary>
-    /// Chat hội thoại với Planify AI (chỉ về chủ đề kế hoạch, tiếng Việt).
-    /// </summary>
-    /// <remarks>
-    /// Request body:
-    /// <code>
-    /// {
-    ///   "message": "Mình nên làm gì trước khi bắt đầu kế hoạch học tập?",
-    ///   "history": [
-    ///     { "role": "user", "content": "Xin chào" },
-    ///     { "role": "assistant", "content": "Xin chào! Mình có thể giúp gì?" }
-    ///   ]
-    /// }
-    /// </code>
-    /// </remarks>
+    private Guid? GetUserId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    // ── POST /api/ai/chat ─────────────────────────────────────────────────
+
+    /// <summary>Chat hội thoại với Planify AI (chỉ về chủ đề kế hoạch, tiếng Việt).</summary>
     [HttpPost("chat")]
     public async Task<IActionResult> Chat(
         [FromBody] ChatRequestDto request,
@@ -59,19 +59,18 @@ public class AiChatController : ControllerBase
         }
     }
 
+    // ── POST /api/ai/generate-plan ────────────────────────────────────────
+
     /// <summary>
-    /// Tạo kế hoạch chi tiết bằng AI từ mục tiêu và deadline.
-    /// AI trả về JSON chuẩn gồm plan, tasks, subtasks và metadata.
+    /// Tạo kế hoạch bằng AI → tự động lưu vào DB với Status = "draft".
+    /// FE dùng planId trả về để hiển thị preview và sau đó confirm/discard.
     /// </summary>
     /// <remarks>
     /// Request body:
     /// <code>
-    /// {
-    ///   "goal": "Học IELTS đạt 6.5",
-    ///   "deadline": "2025-08-01",
-    ///   "description": "Mình cần ôn 4 kỹ năng từ đầu"
-    /// }
+    /// { "prompt": "Tôi muốn học IELTS 6.5 trước tháng 8/2026, hiện tại band 5.0" }
     /// </code>
+    /// Response trả về: { planId, plan (PlanDto đầy đủ), message, model, elapsedMs }
     /// </remarks>
     [HttpPost("generate-plan")]
     public async Task<IActionResult> GeneratePlan(
@@ -81,37 +80,43 @@ public class AiChatController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        // Validate deadline format - so sánh theo ngày (GMT+7), cho phép hôm nay trở đi
-        var today = DateTime.UtcNow.AddHours(7).Date;
-        if (!DateTime.TryParse(request.Deadline, out var deadline) || deadline.Date < today)
-            return BadRequest(new { error = "Deadline không hợp lệ. Vui lòng nhập ngày hôm nay hoặc trong tương lai (định dạng YYYY-MM-DD)." });
+        var userId = GetUserId();
+        if (userId is null)
+            return Unauthorized(new { error = "Không xác định được user từ token." });
 
         try
         {
-            var response = await _aiChatService.GeneratePlanAsync(request, cancellationToken);
-            return Ok(response);
+            // 1. Gọi AI → nhận JSON kế hoạch
+            var aiResponse = await _aiChatService.GeneratePlanAsync(request, cancellationToken);
+
+            // 2. Parse JSON → lưu DB với Status = "draft" (hết hạn sau 24h)
+            var saveDto = new SaveAiPlanRequestDto { PlanData = aiResponse.PlanData };
+            var draftPlan = await _planService.SaveAiPlanAsDraftAsync(saveDto, userId.Value);
+
+            _logger.LogInformation(
+                "AI draft plan created: planId={PlanId}, userId={UserId}, elapsedMs={Ms}",
+                draftPlan.Id, userId.Value, aiResponse.ElapsedMs);
+
+            return Ok(new
+            {
+                planId    = draftPlan.Id,
+                plan      = draftPlan,
+                message   = aiResponse.Message,
+                model     = aiResponse.Model,
+                elapsedMs = aiResponse.ElapsedMs
+            });
         }
         catch (OperationCanceledException)
         {
             _logger.LogWarning("Generate plan bị timeout hoặc bị hủy");
-            return StatusCode(408, new { error = "AI xử lý quá lâu. Vui lòng thử lại (llama3 cần 30-120 giây tùy máy)." });
+            return StatusCode(408, new { error = "AI xử lý quá lâu. Vui lòng thử lại." });
         }
         catch (Exception ex)
         {
-            // Log đầy đủ để debug
-            _logger.LogError(ex, "Generate plan thất bại. Type={Type} Message={Message}",
-                ex.GetType().Name, ex.Message);
-
-            // Trả về lỗi thật để dễ debug (có thể ẩn đi khi production)
+            _logger.LogError(ex, "Generate plan thất bại. Type={Type}", ex.GetType().Name);
             return ex is InvalidOperationException
-                ? StatusCode(503, new { error = ex.Message, type = ex.GetType().Name })
-                : StatusCode(500, new
-                {
-                    error   = ex.Message,
-                    type    = ex.GetType().Name,
-                    details = ex.InnerException?.Message
-                });
+                ? StatusCode(503, new { error = ex.Message })
+                : StatusCode(500, new { error = ex.Message, details = ex.InnerException?.Message });
         }
     }
 }
-

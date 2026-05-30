@@ -20,6 +20,10 @@ public class Plan
     public int Progress { get; set; } = 0;
     public bool IsAIGenerated { get; set; } = false;
     public int SortOrder { get; set; } = 0;
+
+    /// <summary>Thời điểm hết hạn của bản draft. Null nếu plan đã active.</summary>
+    public DateTime? DraftExpiresAt { get; set; }
+
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

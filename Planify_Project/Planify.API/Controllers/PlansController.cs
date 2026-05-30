@@ -118,4 +118,67 @@ public class PlansController : ControllerBase
 
         return Ok(plan);
     }
+
+    // ── POST /api/plans/{id}/confirm ──────────────────────────────────────
+
+    /// <summary>
+    /// Xác nhận kế hoạch draft → chuyển Status thành "active".
+    /// Gọi sau khi user xem preview và đồng ý sử dụng kế hoạch.
+    /// </summary>
+    [HttpPost("{id}/confirm")]
+    public async Task<IActionResult> ConfirmPlan(Guid id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized("User ID not found or invalid.");
+
+        try
+        {
+            var plan = await _planService.ConfirmDraftPlanAsync(id, userId);
+            return Ok(new { message = "Kế hoạch đã được xác nhận!", plan });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi xác nhận kế hoạch.", details = ex.Message });
+        }
+    }
+
+    // ── DELETE /api/plans/{id}/draft ──────────────────────────────────────
+
+    /// <summary>
+    /// Hủy và xóa kế hoạch draft. Chỉ áp dụng cho plan đang ở Status = "draft".
+    /// </summary>
+    [HttpDelete("{id}/draft")]
+    public async Task<IActionResult> DiscardDraft(Guid id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized("User ID not found or invalid.");
+
+        try
+        {
+            await _planService.DiscardDraftPlanAsync(id, userId);
+            return Ok(new { message = "Đã hủy bản nháp kế hoạch." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi hủy bản nháp.", details = ex.Message });
+        }
+    }
 }

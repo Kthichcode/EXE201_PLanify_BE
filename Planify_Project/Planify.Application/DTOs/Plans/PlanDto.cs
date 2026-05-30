@@ -20,6 +20,8 @@ public class PlanDto
     public int Progress { get; set; }
     public bool IsAIGenerated { get; set; }
     public int SortOrder { get; set; }
+    public DateTime? DraftExpiresAt { get; set; }
+
     
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
