@@ -4,11 +4,15 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using Planify.Infrastructure.Identity;
+using Planify.Application.Interfaces;
 
 namespace Planify.Infrastructure.Services;
 
-public class TokenService
+/// <summary>
+/// Sinh và xác thực JWT / Refresh Token.
+/// Implements ITokenService (Application/Interfaces) — không còn phụ thuộc vào ApplicationUser.
+/// </summary>
+public class TokenService : ITokenService
 {
     private readonly IConfiguration _configuration;
 
@@ -17,72 +21,67 @@ public class TokenService
         _configuration = configuration;
     }
 
-    /// <summary>Sinh JWT access token</summary>
-    public (string token, DateTime expiration) GenerateAccessToken(ApplicationUser user, IList<string> roles)
+    public (string Token, DateTime Expiration) GenerateAccessToken(
+        Guid userId, string email, string fullName, IList<string> roles)
     {
-        var jwtSettings = _configuration.GetSection("JwtSettings");
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var expireMinutes = int.Parse(jwtSettings["ExpireMinutes"] ?? "60");
-        var expiration = DateTime.UtcNow.AddMinutes(expireMinutes);
+        var jwtSettings    = _configuration.GetSection("JwtSettings");
+        var key            = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
+        var creds          = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expireMinutes  = int.Parse(jwtSettings["ExpireMinutes"] ?? "60");
+        var expiration     = DateTime.UtcNow.AddMinutes(expireMinutes);
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email!),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new("fullName", user.FullName),
+            new(JwtRegisteredClaimNames.Sub,   userId.ToString()),
+            new(JwtRegisteredClaimNames.Email, email),
+            new(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
+            new("fullName",                    fullName),
         };
 
         foreach (var role in roles)
-        {
             claims.Add(new Claim(ClaimTypes.Role, role));
-        }
 
         var token = new JwtSecurityToken(
-            issuer: jwtSettings["Issuer"],
-            audience: jwtSettings["Audience"],
-            claims: claims,
-            expires: expiration,
-            signingCredentials: creds
-        );
+            issuer:             jwtSettings["Issuer"],
+            audience:           jwtSettings["Audience"],
+            claims:             claims,
+            expires:            expiration,
+            signingCredentials: creds);
 
         return (new JwtSecurityTokenHandler().WriteToken(token), expiration);
     }
 
-    /// <summary>Sinh Refresh Token ngẫu nhiên (opaque token)</summary>
-    public (string token, DateTime expiration) GenerateRefreshToken()
+    public (string Token, DateTime Expiration) GenerateRefreshToken()
     {
-        var jwtSettings = _configuration.GetSection("JwtSettings");
-        var refreshExpireDays = int.Parse(jwtSettings["RefreshTokenExpireDays"] ?? "7");
+        var jwtSettings         = _configuration.GetSection("JwtSettings");
+        var refreshExpireDays   = int.Parse(jwtSettings["RefreshTokenExpireDays"] ?? "7");
 
         var randomBytes = new byte[64];
-        using var rng = RandomNumberGenerator.Create();
+        using var rng   = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
 
         return (Convert.ToBase64String(randomBytes), DateTime.UtcNow.AddDays(refreshExpireDays));
     }
 
-    /// <summary>Lấy UserId từ JWT đã hết hạn (dùng khi refresh)</summary>
     public string? GetUserIdFromExpiredToken(string token)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
-        var tokenValidationParameters = new TokenValidationParameters
+        var parameters  = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = false, // Cho phép token hết hạn
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = false,   // cho phép token đã hết hạn
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
+            ValidIssuer              = jwtSettings["Issuer"],
+            ValidAudience            = jwtSettings["Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(
+                                           Encoding.UTF8.GetBytes(jwtSettings["Key"]!))
         };
 
         try
         {
             var principal = new JwtSecurityTokenHandler()
-                .ValidateToken(token, tokenValidationParameters, out _);
+                .ValidateToken(token, parameters, out _);
             return principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
         }
         catch
@@ -90,8 +89,4 @@ public class TokenService
             return null;
         }
     }
-
-    // Giữ tương thích ngược nếu cần (gọi GenerateAccessToken)
-    public (string token, DateTime expiration) GenerateToken(ApplicationUser user)
-        => GenerateAccessToken(user, new List<string>());
 }

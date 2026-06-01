@@ -3,8 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Planify.Application.Interfaces;
+using Planify.Application.Services;
+using Planify.Domain.Interfaces;
 using Planify.Infrastructure.Identity;
 using Planify.Infrastructure.Data;
+using Planify.Infrastructure.Repositories;
 using Planify.Infrastructure.Services;
 
 namespace Planify.Infrastructure;
@@ -15,35 +18,45 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // DbContext
+        // ── DbContext ─────────────────────────────────────────────────────────
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
-        // ASP.NET Identity
+        // ── ASP.NET Identity ──────────────────────────────────────────────────
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
         {
-            options.Password.RequireDigit = true;
-            options.Password.RequireLowercase = true;
-            options.Password.RequireUppercase = false;
-            options.Password.RequireNonAlphanumeric = false;
-            options.Password.RequiredLength = 6;
-            options.User.RequireUniqueEmail = true;
+            options.Password.RequireDigit            = true;
+            options.Password.RequireLowercase        = true;
+            options.Password.RequireUppercase        = false;
+            options.Password.RequireNonAlphanumeric  = false;
+            options.Password.RequiredLength          = 6;
+            options.User.RequireUniqueEmail          = true;
         })
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
 
-        // Services
-        services.AddScoped<TokenService>();
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IPlanService, PlanService>();
-        services.AddScoped<IUserService, UserService>();
+        // ── Infrastructure Services (phụ thuộc external/framework) ───────────
+        services.AddScoped<ITokenService,        TokenService>();        // JWT (Infrastructure)
+        services.AddScoped<IGoogleAuthValidator, GoogleAuthValidator>(); // Google SDK (Infrastructure)
+
+        // ── Repositories (Infrastructure) ─────────────────────────────────────
+        services.AddScoped<IUserRepository,         UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IPlanRepository,         PlanRepository>();
+        services.AddScoped<IPlanTaskRepository,     PlanTaskRepository>();
+        services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+
+        // ── Application Services (business logic thuần, không phụ thuộc infra) ─
+        services.AddScoped<IAuthService,         AuthService>();
+        services.AddScoped<IUserService,         UserService>();
+        services.AddScoped<IPlanService,         PlanService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
 
-        // OpenAI Chat Service (gpt-4o-mini)
+        // ── OpenAI Chat Service (HttpClient + external API) ───────────────────
         services.AddHttpClient<IAiChatService, OpenAiChatService>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com");
-            client.Timeout = TimeSpan.FromSeconds(130); // buffer thêm 10s so với timeout nội bộ
+            client.Timeout     = TimeSpan.FromSeconds(130);
         });
 
         return services;
