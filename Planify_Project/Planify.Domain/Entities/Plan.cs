@@ -24,6 +24,8 @@ public class Plan
     /// <summary>Thời điểm hết hạn của bản draft. Null nếu plan đã active.</summary>
     public DateTime? DraftExpiresAt { get; set; }
 
+    public bool IsReminderSent { get; set; } = false;
+
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

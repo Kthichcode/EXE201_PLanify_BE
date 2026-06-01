@@ -21,6 +21,8 @@ public class PlanTask
     public int Progress { get; set; } = 0;
     public int OrderIndex { get; set; } = 0;
     
+    public bool IsReminderSent { get; set; } = false;
+    
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

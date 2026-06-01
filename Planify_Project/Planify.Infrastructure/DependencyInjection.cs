@@ -59,6 +59,11 @@ public static class DependencyInjection
             client.Timeout     = TimeSpan.FromSeconds(130);
         });
 
+        // ── Email & Background Jobs ──────────────────────────────────────────
+        services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddHostedService<DeadlineNotificationJob>();
+
         return services;
     }
 }
