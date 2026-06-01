@@ -119,16 +119,55 @@ public class PlansController : ControllerBase
         return Ok(plan);
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetPlans()
+    [HttpPost("{id}/confirm")]
+    public async Task<IActionResult> ConfirmPlan(Guid id)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
-        {
             return Unauthorized("User ID not found or invalid.");
-        }
 
-        var plans = await _planService.GetPlansByUserIdAsync(userId);
-        return Ok(plans);
+        try
+        {
+            var plan = await _planService.ConfirmDraftPlanAsync(id, userId);
+            return Ok(new { message = "Kế hoạch đã được xác nhận!", plan });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi xác nhận kế hoạch.", details = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id}/draft")]
+    public async Task<IActionResult> DiscardDraft(Guid id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized("User ID not found or invalid.");
+
+        try
+        {
+            await _planService.DiscardDraftPlanAsync(id, userId);
+            return Ok(new { message = "Đã hủy bản nháp kế hoạch." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi hủy bản nháp.", details = ex.Message });
+        }
     }
 }

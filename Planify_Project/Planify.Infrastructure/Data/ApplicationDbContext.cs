@@ -103,7 +103,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction); // Avoid multiple cascade paths (User→PaymentTransaction and User→UserSubscription→PaymentTransaction)
             entity.HasOne(e => e.Subscription)
                 .WithMany()
                 .HasForeignKey(e => e.SubscriptionId)

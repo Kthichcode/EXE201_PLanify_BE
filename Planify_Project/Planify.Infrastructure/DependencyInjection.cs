@@ -39,6 +39,13 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
 
+        // OpenAI Chat Service (gpt-4o-mini)
+        services.AddHttpClient<IAiChatService, OpenAiChatService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com");
+            client.Timeout = TimeSpan.FromSeconds(130); // buffer thêm 10s so với timeout nội bộ
+        });
+
         return services;
     }
 }
