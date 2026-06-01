@@ -149,75 +149,150 @@ public class PlanService : IPlanService
     public async Task<PlanDto> SaveAiPlanAsDraftAsync(SaveAiPlanRequestDto dto, Guid userId)
     {
         var planData = dto.PlanData;
-        
-        var planNode = planData["plan"];
-        if (planNode == null) throw new Exception("Invalid plan data structure");
 
+        var planNode = planData["plan"]
+            ?? throw new InvalidOperationException("planData thiếu trường 'plan'.");
+
+        // ── Helper đọc field case-insensitive (AI có thể trả về Title hoặc title) ──
+        static string? GetStr(System.Text.Json.Nodes.JsonNode node, string key)
+        {
+            // Thử PascalCase trước (schema chuẩn), rồi lowercase
+            var val = node[key]?.GetValue<string>()
+                   ?? node[char.ToLower(key[0]) + key[1..]]?.GetValue<string>();
+            return string.IsNullOrWhiteSpace(val) ? null : val.Trim();
+        }
+
+        static DateTime? GetDate(System.Text.Json.Nodes.JsonNode node, string key)
+        {
+            var raw = node[key]?.GetValue<string>()
+                   ?? node[char.ToLower(key[0]) + key[1..]]?.GetValue<string>();
+            return DateTime.TryParse(raw, out var d) ? d : null;
+        }
+
+        // ── Validate Plan node ────────────────────────────────────────────────
+        var planTitle = GetStr(planNode, "Title")
+            ?? throw new InvalidOperationException("AI không trả về Title cho plan. Vui lòng thử lại.");
+
+        var planDesc = GetStr(planNode, "Description")
+            ?? throw new InvalidOperationException("AI không trả về Description cho plan. Vui lòng thử lại.");
+
+        // ── Build Plan entity ─────────────────────────────────────────────────
         var plan = new Plan
         {
-            UserId = userId,
-            Title = planNode["title"]?.ToString() ?? "AI Plan",
-            Description = planNode["description"]?.ToString(),
-            Goal = planNode["goal"]?.ToString(),
-            Status = "draft",
-            IsAIGenerated = true,
-            Progress = 0,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UserId         = userId,
+            Title          = planTitle,
+            Description    = planDesc,
+            Goal           = GetStr(planNode, "Goal"),
+            Deadline       = GetDate(planNode, "Deadline"),
+            Status         = "draft",
+            IsAIGenerated  = true,
+            IsPublic       = planNode["IsPublic"]?.GetValue<bool>() ?? false,
+            Progress       = 0,
+            DraftExpiresAt = DateTime.UtcNow.AddHours(24),
+            CreatedAt      = DateTime.UtcNow,
+            UpdatedAt      = DateTime.UtcNow
         };
 
-        await _planRepository.AddAsync(plan);
-        await _planRepository.SaveChangesAsync();
+        // ── Validate Tasks array ──────────────────────────────────────────────
+        var tasksNode = (planData["tasks"] ?? planData["Tasks"]) as System.Text.Json.Nodes.JsonArray
+            ?? throw new InvalidOperationException("AI không trả về danh sách tasks. Vui lòng thử lại.");
 
-        var tasksNode = planData["tasks"] as System.Text.Json.Nodes.JsonArray;
-        if (tasksNode != null)
+        if (tasksNode.Count == 0)
+            throw new InvalidOperationException("AI trả về danh sách tasks rỗng. Vui lòng thử lại.");
+
+        // ── Build Task entities ───────────────────────────────────────────────
+        var planTasks = new List<PlanTask>();
+        int taskOrder = 1;
+
+        foreach (var tNode in tasksNode)
         {
-            int orderIndex = 0;
-            foreach (var tNode in tasksNode)
+            if (tNode is null) continue;
+
+            var taskTitle = GetStr(tNode, "Title")
+                ?? throw new InvalidOperationException($"Task #{taskOrder} không có Title. Vui lòng thử lại.");
+
+            var taskDesc = GetStr(tNode, "Description")
+                ?? throw new InvalidOperationException($"Task '{taskTitle}' không có Description. Vui lòng thử lại.");
+
+            var task = new PlanTask
             {
-                if (tNode == null) continue;
-                
-                var task = new PlanTask
+                Title       = taskTitle,
+                Description = taskDesc,
+                Priority    = GetStr(tNode, "Priority") ?? "medium",
+                Status      = "todo",
+                StartDate   = GetDate(tNode, "StartDate"),
+                DueDate     = GetDate(tNode, "DueDate"),
+                Progress    = 0,
+                OrderIndex  = tNode["OrderIndex"]?.GetValue<int>() ?? taskOrder,
+                CreatedAt   = DateTime.UtcNow,
+                UpdatedAt   = DateTime.UtcNow
+            };
+
+            // Subtasks — schema AI dùng "subtasks" (lowercase)
+            var subNode = (tNode["subtasks"] ?? tNode["subTasks"] ?? tNode["Subtasks"])
+                          as System.Text.Json.Nodes.JsonArray;
+
+            int subOrder = 1;
+            if (subNode is not null)
+            {
+                foreach (var stNode in subNode)
                 {
-                    PlanId = plan.Id,
-                    Title = tNode["title"]?.ToString() ?? "Task",
-                    Description = tNode["description"]?.ToString(),
-                    Priority = tNode["priority"]?.ToString() ?? "medium",
-                    Status = "todo",
-                    OrderIndex = orderIndex++,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+                    if (stNode is null) continue;
+
+                    var subTitle = GetStr(stNode, "Title")
+                        ?? throw new InvalidOperationException($"Subtask #{subOrder} của task '{taskTitle}' không có Title.");
+
+                    var subDesc = GetStr(stNode, "Description")
+                        ?? throw new InvalidOperationException($"Subtask '{subTitle}' không có Description.");
+
+                    task.SubTasks.Add(new PlanTask
+                    {
+                        Title       = subTitle,
+                        Description = subDesc,
+                        Priority    = GetStr(stNode, "Priority") ?? "medium",
+                        Status      = "todo",
+                        StartDate   = GetDate(stNode, "StartDate"),
+                        DueDate     = GetDate(stNode, "DueDate"),
+                        Progress    = 0,
+                        OrderIndex  = stNode["OrderIndex"]?.GetValue<int>() ?? subOrder,
+                        CreatedAt   = DateTime.UtcNow,
+                        UpdatedAt   = DateTime.UtcNow
+                    });
+                    subOrder++;
+                }
+            }
+
+            planTasks.Add(task);
+            taskOrder++;
+        }
+
+        // ── Lưu vào DB trong 1 transaction ───────────────────────────────────
+        await _planRepository.ExecuteInTransactionAsync(async () =>
+        {
+            await _planRepository.AddAsync(plan);
+            await _planRepository.SaveChangesAsync();
+
+            foreach (var task in planTasks)
+            {
+                task.PlanId = plan.Id;
+                var subtasks = task.SubTasks.ToList();
+                task.SubTasks.Clear();
+
                 await _taskRepository.AddAsync(task);
                 await _taskRepository.SaveChangesAsync();
 
-                var subTasksNode = tNode["subTasks"] as System.Text.Json.Nodes.JsonArray;
-                if (subTasksNode != null)
+                foreach (var st in subtasks)
                 {
-                    int subOrder = 0;
-                    foreach(var subNode in subTasksNode)
-                    {
-                        if (subNode == null) continue;
-                        var subTask = new PlanTask
-                        {
-                            PlanId = plan.Id,
-                            ParentTaskId = task.Id,
-                            Title = subNode["title"]?.ToString() ?? "Subtask",
-                            Description = subNode["description"]?.ToString(),
-                            Priority = subNode["priority"]?.ToString() ?? "medium",
-                            Status = "todo",
-                            OrderIndex = subOrder++,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        };
-                        await _taskRepository.AddAsync(subTask);
-                    }
+                    st.PlanId       = plan.Id;
+                    st.ParentTaskId = task.Id;
+                    await _taskRepository.AddAsync(st);
                 }
+                await _taskRepository.SaveChangesAsync();
             }
-            await _taskRepository.SaveChangesAsync();
-        }
+        });
 
-        return await GetPlanByIdAsync(plan.Id, userId) ?? throw new Exception("Failed to retrieve saved plan.");
+        return await GetPlanByIdAsync(plan.Id, userId)
+            ?? throw new InvalidOperationException("Không thể load plan sau khi lưu.");
     }
 
     public async Task<PlanDto> ConfirmDraftPlanAsync(Guid planId, Guid userId)
