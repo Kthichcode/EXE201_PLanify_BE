@@ -4,7 +4,7 @@ using Planify.Application.Interfaces;
 using Planify.Domain.Entities;
 using Planify.Domain.Interfaces;
 
-namespace Planify.Infrastructure.Services;
+namespace Planify.Application.Services;
 
 public class SubscriptionService : ISubscriptionService
 {
