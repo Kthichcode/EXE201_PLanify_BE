@@ -45,12 +45,16 @@ public static class DependencyInjection
         services.AddScoped<IPlanRepository,         PlanRepository>();
         services.AddScoped<IPlanTaskRepository,     PlanTaskRepository>();
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        services.AddScoped<IPlanFrameworkRepository, PlanFrameworkRepository>();
+        services.AddScoped<IPlanTemplateRepository,  PlanTemplateRepository>();
 
         // ── Application Services (business logic thuần, không phụ thuộc infra) ─
         services.AddScoped<IAuthService,         AuthService>();
         services.AddScoped<IUserService,         UserService>();
         services.AddScoped<IPlanService,         PlanService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
+        services.AddScoped<IPlanFrameworkService, PlanFrameworkService>();
+        services.AddScoped<IPlanTemplateService,  PlanTemplateService>();
 
         // ── OpenAI Chat Service (HttpClient + external API) ───────────────────
         services.AddHttpClient<IAiChatService, OpenAiChatService>(client =>

@@ -30,6 +30,8 @@ public class Plan
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation property
+    // Navigation properties
+    public virtual PlanTemplate? Template { get; set; }
+    public virtual PlanFramework? Framework { get; set; }
     public virtual ICollection<PlanTask> Tasks { get; set; } = new List<PlanTask>();
 }

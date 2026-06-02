@@ -19,6 +19,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<PlanFramework> PlanFrameworks => Set<PlanFramework>();
+    public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -45,6 +47,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 
             entity.Property(e => e.Title).IsRequired().HasMaxLength(255);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+
+            entity.HasOne(e => e.Template)
+                .WithMany(t => t.Plans)
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Framework)
+                .WithMany(f => f.Plans)
+                .HasForeignKey(e => e.FrameworkId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<PlanTask>(entity =>
@@ -111,6 +123,36 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Currency).IsRequired().HasMaxLength(10);
             entity.Property(e => e.Amount).HasPrecision(18, 2);
+        });
+
+        builder.Entity<PlanFramework>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Structure).IsRequired();
+            
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<PlanTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.TemplateContent).IsRequired();
+            
+            entity.HasOne(e => e.Framework)
+                .WithMany(f => f.Templates)
+                .HasForeignKey(e => e.FrameworkId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
