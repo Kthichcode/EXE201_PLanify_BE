@@ -25,6 +25,18 @@ public class PlanTaskRepository : IPlanTaskRepository
             .Where(t => t.PlanId == planId)
             .ToListAsync(ct);
 
+    public Task DeleteAsync(PlanTask task, CancellationToken ct = default)
+    {
+        _context.PlanTasks.Remove(task);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteRangeAsync(IEnumerable<PlanTask> tasks, CancellationToken ct = default)
+    {
+        _context.PlanTasks.RemoveRange(tasks);
+        return Task.CompletedTask;
+    }
+
     public async Task SaveChangesAsync(CancellationToken ct = default)
         => await _context.SaveChangesAsync(ct);
 }
