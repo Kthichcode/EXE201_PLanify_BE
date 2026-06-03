@@ -20,7 +20,12 @@ public static class DependencyInjection
     {
         // ── DbContext ─────────────────────────────────────────────────────────
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(
+                configuration.GetConnectionString("DefaultConnection"),
+                sqlOptions => sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 10,
+                    maxRetryDelay: TimeSpan.FromSeconds(15),
+                    errorNumbersToAdd: null)));
 
         // ── ASP.NET Identity ──────────────────────────────────────────────────
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>

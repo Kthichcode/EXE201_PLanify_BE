@@ -1,0 +1,21 @@
+## Git
+.git
+.github
+.gitignore
+
+## Visual Studio
+.vs
+**/*.user
+**/*.suo
+
+## Build outputs (sẽ được build lại bên trong Docker)
+**/bin/
+**/obj/
+
+## Secrets – không bao giờ đưa vào image
+.env
+*.env
+
+## Docs & misc
+README.md
+**/*.md

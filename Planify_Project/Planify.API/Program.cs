@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Planify.Infrastructure;
+using Planify.Infrastructure.Data;
 using System.Text;
-using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,7 +138,27 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Seed initial data (roles + admin user)
-await Planify.Infrastructure.Data.DataSeeder.SeedAsync(app.Services);
+// Auto-apply EF Core migrations + Seed data (với retry khi SQL Server chưa sẵn sàng trong Docker)
+var retries = 0;
+const int maxRetries = 12;
+while (true)
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+        Console.WriteLine("✅ Database migration applied.");
+        break;
+    }
+    catch (Exception ex) when (retries < maxRetries)
+    {
+        retries++;
+        Console.WriteLine($"⚠️  DB not ready (attempt {retries}/{maxRetries}): {ex.Message}");
+        await Task.Delay(TimeSpan.FromSeconds(10));
+    }
+}
+
+await DataSeeder.SeedAsync(app.Services);
 
 app.Run();
