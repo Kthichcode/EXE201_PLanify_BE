@@ -194,4 +194,28 @@ public async Task<IActionResult> GetPlans()
     }
 }
 
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeletePlan(Guid id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized("User ID not found or invalid.");
+
+        try
+        {
+            await _planService.DeletePlanAsync(id, userId);
+            return Ok(new { message = "Kế hoạch đã được xóa thành công." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi xóa kế hoạch.", details = ex.Message });
+        }
+    }
+
+
 }
