@@ -28,4 +28,6 @@ public interface IPlanService
     /// Người dùng chủ động hủy và xóa plan draft (trước khi hết hạn).
     /// </summary>
     Task DiscardDraftPlanAsync(Guid planId, Guid userId);
+
+    Task DeletePlanAsync(Guid planId, Guid userId);
 }
