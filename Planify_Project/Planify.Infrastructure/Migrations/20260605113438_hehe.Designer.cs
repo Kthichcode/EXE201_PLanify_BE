@@ -12,8 +12,8 @@ using Planify.Infrastructure.Data;
 namespace Planify.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260526062314_AddSubscriptions")]
-    partial class AddSubscriptions
+    [Migration("20260605113438_hehe")]
+    partial class hehe
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -221,6 +221,9 @@ namespace Planify.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("DraftExpiresAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid?>("FrameworkId")
                         .HasColumnType("uniqueidentifier");
 
@@ -231,6 +234,9 @@ namespace Planify.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsReminderSent")
                         .HasColumnType("bit");
 
                     b.Property<int>("Progress")
@@ -260,9 +266,55 @@ namespace Planify.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FrameworkId");
+
+                    b.HasIndex("TemplateId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Plans");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Structure")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.ToTable("PlanFrameworks");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.PlanTask", b =>
@@ -282,6 +334,9 @@ namespace Planify.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsReminderSent")
+                        .HasColumnType("bit");
 
                     b.Property<int>("OrderIndex")
                         .HasColumnType("int");
@@ -323,6 +378,51 @@ namespace Planify.Infrastructure.Migrations
                     b.HasIndex("PlanId");
 
                     b.ToTable("PlanTasks");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("FrameworkId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("TemplateContent")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("FrameworkId");
+
+                    b.ToTable("PlanTemplates");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.RefreshToken", b =>
@@ -578,7 +678,7 @@ namespace Planify.Infrastructure.Migrations
                     b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Subscription");
@@ -586,10 +686,33 @@ namespace Planify.Infrastructure.Migrations
 
             modelBuilder.Entity("Planify.Domain.Entities.Plan", b =>
                 {
+                    b.HasOne("Planify.Domain.Entities.PlanFramework", "Framework")
+                        .WithMany("Plans")
+                        .HasForeignKey("FrameworkId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Planify.Domain.Entities.PlanTemplate", "Template")
+                        .WithMany("Plans")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Framework");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
+                {
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -609,6 +732,22 @@ namespace Planify.Infrastructure.Migrations
                     b.Navigation("ParentTask");
 
                     b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanTemplate", b =>
+                {
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Domain.Entities.PlanFramework", "Framework")
+                        .WithMany("Templates")
+                        .HasForeignKey("FrameworkId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Framework");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.UserSubscription", b =>
@@ -633,9 +772,21 @@ namespace Planify.Infrastructure.Migrations
                     b.Navigation("Tasks");
                 });
 
+            modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
+                {
+                    b.Navigation("Plans");
+
+                    b.Navigation("Templates");
+                });
+
             modelBuilder.Entity("Planify.Domain.Entities.PlanTask", b =>
                 {
                     b.Navigation("SubTasks");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanTemplate", b =>
+                {
+                    b.Navigation("Plans");
                 });
 #pragma warning restore 612, 618
         }
