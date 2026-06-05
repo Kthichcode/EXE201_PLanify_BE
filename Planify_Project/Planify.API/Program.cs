@@ -117,14 +117,13 @@ catch (Exception ex)
 }
 
 // Pipeline
-if (app.Environment.IsDevelopment())
-{
+
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Planify API v1");
     });
-}
+
 
 // Serve static files (google-login-test.html, etc.)
 app.UseStaticFiles();
