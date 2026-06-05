@@ -70,6 +70,16 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, EmailService>();
         services.AddHostedService<DeadlineNotificationJob>();
 
+        // ── PayOS Payment Gateway ─────────────────────────────────────────────
+        services.AddSingleton(sp =>
+        {
+            var clientId = configuration["PayOS:ClientId"] ?? "";
+            var apiKey = configuration["PayOS:ApiKey"] ?? "";
+            var checksumKey = configuration["PayOS:ChecksumKey"] ?? "";
+            return new PayOS.PayOSClient(clientId, apiKey, checksumKey);
+        });
+        services.AddScoped<IPaymentService, PaymentService>();
+
         return services;
     }
 }
