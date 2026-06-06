@@ -28,4 +28,10 @@ public interface IPlanService
     /// Người dùng chủ động hủy và xóa plan draft (trước khi hết hạn).
     /// </summary>
     Task DiscardDraftPlanAsync(Guid planId, Guid userId);
+
+    /// <summary>
+    /// Overwrite toàn bộ tasks/subtasks của draft plan bằng kết quả AI mới.
+    /// Giữ nguyên planId, gia hạn DraftExpiresAt thêm 24h.
+    /// </summary>
+    Task<PlanDto> RefreshDraftWithRefinedPlanAsync(Guid planId, SaveAiPlanRequestDto dto, Guid userId);
 }

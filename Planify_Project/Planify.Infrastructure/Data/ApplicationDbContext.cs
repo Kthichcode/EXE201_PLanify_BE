@@ -21,6 +21,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<PlanFramework> PlanFrameworks => Set<PlanFramework>();
     public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
+    public DbSet<CommunityPlan> CommunityPlans => Set<CommunityPlan>();
+    public DbSet<CommunityPlanLike> CommunityPlanLikes => Set<CommunityPlanLike>();
+    public DbSet<PlanCopy> PlanCopies => Set<PlanCopy>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -153,6 +156,69 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .WithMany()
                 .HasForeignKey(e => e.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CommunityPlan>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.PlanId).IsUnique();
+
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+
+            entity.HasOne(e => e.Plan)
+                .WithMany()
+                .HasForeignKey(e => e.PlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.ReviewedBy)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<CommunityPlanLike>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Unique: mỗi user chỉ like 1 lần mỗi community plan
+            entity.HasIndex(e => new { e.UserId, e.CommunityPlanId }).IsUnique();
+
+            entity.HasOne(e => e.CommunityPlan)
+                .WithMany(cp => cp.Likes)
+                .HasForeignKey(e => e.CommunityPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<PlanCopy>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasOne(e => e.CommunityPlan)
+                .WithMany(cp => cp.Copies)
+                .HasForeignKey(e => e.CommunityPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.NewPlan)
+                .WithMany()
+                .HasForeignKey(e => e.NewPlanId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

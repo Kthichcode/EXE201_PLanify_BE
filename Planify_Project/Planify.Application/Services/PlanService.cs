@@ -320,6 +320,155 @@ public class PlanService : IPlanService
         await _planRepository.SaveChangesAsync();
     }
 
+    public async Task<PlanDto> RefreshDraftWithRefinedPlanAsync(Guid planId, SaveAiPlanRequestDto dto, Guid userId)
+    {
+        // ── 1. Load plan, kiểm tra quyền và trạng thái ──────────────────────
+        var plan = await _planRepository.GetByIdWithTasksAsync(planId)
+            ?? throw new KeyNotFoundException($"Không tìm thấy plan với id={planId}.");
+
+        if (plan.UserId != userId)
+            throw new UnauthorizedAccessException("Bạn không có quyền chỉnh sửa kế hoạch này.");
+
+        if (plan.Status == "discarded")
+            throw new InvalidOperationException("Không thể chỉnh sửa kế hoạch đã bị hủy.");
+
+        var planData = dto.PlanData;
+
+        // ── Helper đọc field case-insensitive ───────────────────────────────
+        static string? GetStr(System.Text.Json.Nodes.JsonNode node, string key)
+        {
+            var val = node[key]?.GetValue<string>()
+                   ?? node[char.ToLower(key[0]) + key[1..]]?.GetValue<string>();
+            return string.IsNullOrWhiteSpace(val) ? null : val.Trim();
+        }
+
+        static DateTime? GetDate(System.Text.Json.Nodes.JsonNode node, string key)
+        {
+            var raw = node[key]?.GetValue<string>()
+                   ?? node[char.ToLower(key[0]) + key[1..]]?.GetValue<string>();
+            return DateTime.TryParse(raw, out var d) ? d : null;
+        }
+
+        // ── 2. Parse Plan node ───────────────────────────────────────────────
+        var planNode = planData["plan"]
+            ?? throw new InvalidOperationException("planData thiếu trường 'plan'.");
+
+        var planTitle = GetStr(planNode, "Title")
+            ?? throw new InvalidOperationException("AI không trả về Title cho plan. Vui lòng thử lại.");
+
+        var planDesc = GetStr(planNode, "Description")
+            ?? throw new InvalidOperationException("AI không trả về Description cho plan. Vui lòng thử lại.");
+
+        // ── 3. Parse Tasks array ─────────────────────────────────────────────
+        var tasksNode = (planData["tasks"] ?? planData["Tasks"]) as System.Text.Json.Nodes.JsonArray
+            ?? throw new InvalidOperationException("AI không trả về danh sách tasks. Vui lòng thử lại.");
+
+        if (tasksNode.Count == 0)
+            throw new InvalidOperationException("AI trả về danh sách tasks rỗng. Vui lòng thử lại.");
+
+        // ── 4. Overwrite trong transaction ───────────────────────────────────
+        await _planRepository.ExecuteInTransactionAsync(async () =>
+        {
+            // 4a. Xóa toàn bộ tasks/subtasks cũ
+            if (plan.Tasks != null)
+            {
+                var allTasks = plan.Tasks.ToList();
+                foreach (var t in allTasks)
+                    await _taskRepository.DeleteAsync(t);
+                await _taskRepository.SaveChangesAsync();
+            }
+
+            // 4b. Cập nhật thông tin plan từ AI mới
+            plan.Title          = planTitle;
+            plan.Description    = planDesc;
+            plan.Goal           = GetStr(planNode, "Goal") ?? plan.Goal;
+            plan.Deadline       = GetDate(planNode, "Deadline") ?? plan.Deadline;
+            plan.IsPublic       = planNode["IsPublic"]?.GetValue<bool>() ?? plan.IsPublic;
+            plan.Progress       = 0;
+            plan.UpdatedAt      = DateTime.UtcNow;
+
+            // Gia hạn thêm 24h nếu là draft, không đụng DraftExpiresAt nếu đã active
+            if (plan.Status == "draft")
+                plan.DraftExpiresAt = DateTime.UtcNow.AddHours(24);
+
+            await _planRepository.SaveChangesAsync();
+
+            // 4c. Insert tasks/subtasks mới
+            int taskOrder = 1;
+            foreach (var tNode in tasksNode)
+            {
+                if (tNode is null) continue;
+
+                var taskTitle = GetStr(tNode, "Title")
+                    ?? throw new InvalidOperationException($"Task #{taskOrder} không có Title. Vui lòng thử lại.");
+
+                var taskDesc = GetStr(tNode, "Description")
+                    ?? throw new InvalidOperationException($"Task '{taskTitle}' không có Description. Vui lòng thử lại.");
+
+                var task = new PlanTask
+                {
+                    PlanId      = plan.Id,
+                    Title       = taskTitle,
+                    Description = taskDesc,
+                    Priority    = GetStr(tNode, "Priority") ?? "medium",
+                    Status      = "todo",
+                    StartDate   = GetDate(tNode, "StartDate"),
+                    DueDate     = GetDate(tNode, "DueDate"),
+                    Progress    = 0,
+                    OrderIndex  = tNode["OrderIndex"]?.GetValue<int>() ?? taskOrder,
+                    CreatedAt   = DateTime.UtcNow,
+                    UpdatedAt   = DateTime.UtcNow
+                };
+
+                var subNode = (tNode["subtasks"] ?? tNode["subTasks"] ?? tNode["Subtasks"])
+                              as System.Text.Json.Nodes.JsonArray;
+
+                await _taskRepository.AddAsync(task);
+                await _taskRepository.SaveChangesAsync();
+
+                int subOrder = 1;
+                if (subNode is not null)
+                {
+                    foreach (var stNode in subNode)
+                    {
+                        if (stNode is null) continue;
+
+                        var subTitle = GetStr(stNode, "Title")
+                            ?? throw new InvalidOperationException($"Subtask #{subOrder} của task '{taskTitle}' không có Title.");
+
+                        var subDesc = GetStr(stNode, "Description")
+                            ?? throw new InvalidOperationException($"Subtask '{subTitle}' không có Description.");
+
+                        var subtask = new PlanTask
+                        {
+                            PlanId       = plan.Id,
+                            ParentTaskId = task.Id,
+                            Title        = subTitle,
+                            Description  = subDesc,
+                            Priority     = GetStr(stNode, "Priority") ?? "medium",
+                            Status       = "todo",
+                            StartDate    = GetDate(stNode, "StartDate"),
+                            DueDate      = GetDate(stNode, "DueDate"),
+                            Progress     = 0,
+                            OrderIndex   = stNode["OrderIndex"]?.GetValue<int>() ?? subOrder,
+                            CreatedAt    = DateTime.UtcNow,
+                            UpdatedAt    = DateTime.UtcNow
+                        };
+
+                        await _taskRepository.AddAsync(subtask);
+                        subOrder++;
+                    }
+                    await _taskRepository.SaveChangesAsync();
+                }
+
+                taskOrder++;
+            }
+        });
+
+        return await GetPlanByIdAsync(plan.Id, userId)
+            ?? throw new InvalidOperationException("Không thể load plan sau khi chỉnh sửa.");
+    }
+
     private async Task RecalculatePlanProgressAsync(Guid planId)
     {
         var plan = await _planRepository.GetByIdWithTasksAsync(planId);

@@ -130,14 +130,12 @@ app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 
-// ⚠️ CORS phải đứng TRƯỚC Authentication/Authorization
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Auto-apply EF Core migrations + Seed data (với retry khi SQL Server chưa sẵn sàng trong Docker)
 var retries = 0;
 const int maxRetries = 12;
 while (true)
