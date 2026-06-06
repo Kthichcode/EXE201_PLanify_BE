@@ -12,7 +12,7 @@ using Planify.Infrastructure.Data;
 namespace Planify.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260605113438_hehe")]
+    [Migration("20260606014740_hehe")]
     partial class hehe
     {
         /// <inheritdoc />
@@ -156,6 +156,92 @@ namespace Planify.Infrastructure.Migrations
                     b.ToTable("UserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Planify.Domain.Entities.CommunityPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DownloadCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LikeCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RejectReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("CommunityPlans");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.CommunityPlanLike", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CommunityPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityPlanId");
+
+                    b.HasIndex("UserId", "CommunityPlanId")
+                        .IsUnique();
+
+                    b.ToTable("CommunityPlanLikes");
+                });
+
             modelBuilder.Entity("Planify.Domain.Entities.PaymentTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -273,6 +359,35 @@ namespace Planify.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Plans");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanCopy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CommunityPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("NewPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityPlanId");
+
+                    b.HasIndex("NewPlanId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PlanCopies");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
@@ -668,6 +783,45 @@ namespace Planify.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Planify.Domain.Entities.CommunityPlan", b =>
+                {
+                    b.HasOne("Planify.Domain.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.CommunityPlanLike", b =>
+                {
+                    b.HasOne("Planify.Domain.Entities.CommunityPlan", "CommunityPlan")
+                        .WithMany("Likes")
+                        .HasForeignKey("CommunityPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CommunityPlan");
+                });
+
             modelBuilder.Entity("Planify.Domain.Entities.PaymentTransaction", b =>
                 {
                     b.HasOne("Planify.Domain.Entities.UserSubscription", "Subscription")
@@ -705,6 +859,31 @@ namespace Planify.Infrastructure.Migrations
                     b.Navigation("Framework");
 
                     b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanCopy", b =>
+                {
+                    b.HasOne("Planify.Domain.Entities.CommunityPlan", "CommunityPlan")
+                        .WithMany("Copies")
+                        .HasForeignKey("CommunityPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Domain.Entities.Plan", "NewPlan")
+                        .WithMany()
+                        .HasForeignKey("NewPlanId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CommunityPlan");
+
+                    b.Navigation("NewPlan");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
@@ -765,6 +944,13 @@ namespace Planify.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.CommunityPlan", b =>
+                {
+                    b.Navigation("Copies");
+
+                    b.Navigation("Likes");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.Plan", b =>

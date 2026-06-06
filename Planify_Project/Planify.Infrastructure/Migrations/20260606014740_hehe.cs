@@ -363,6 +363,46 @@ namespace Planify.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CommunityPlans",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Title = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    ReviewedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ReviewedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RejectReason = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DownloadCount = table.Column<int>(type: "int", nullable: false),
+                    LikeCount = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CommunityPlans", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CommunityPlans_Plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "Plans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CommunityPlans_Users_ReviewedBy",
+                        column: x => x.ReviewedBy,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_CommunityPlans_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PlanTasks",
                 columns: table => new
                 {
@@ -399,6 +439,89 @@ namespace Planify.Infrastructure.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "CommunityPlanLikes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CommunityPlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CommunityPlanLikes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CommunityPlanLikes_CommunityPlans_CommunityPlanId",
+                        column: x => x.CommunityPlanId,
+                        principalTable: "CommunityPlans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CommunityPlanLikes_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlanCopies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CommunityPlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    NewPlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlanCopies", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlanCopies_CommunityPlans_CommunityPlanId",
+                        column: x => x.CommunityPlanId,
+                        principalTable: "CommunityPlans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PlanCopies_Plans_NewPlanId",
+                        column: x => x.NewPlanId,
+                        principalTable: "Plans",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_PlanCopies_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CommunityPlanLikes_CommunityPlanId",
+                table: "CommunityPlanLikes",
+                column: "CommunityPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CommunityPlanLikes_UserId_CommunityPlanId",
+                table: "CommunityPlanLikes",
+                columns: new[] { "UserId", "CommunityPlanId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CommunityPlans_PlanId",
+                table: "CommunityPlans",
+                column: "PlanId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CommunityPlans_ReviewedBy",
+                table: "CommunityPlans",
+                column: "ReviewedBy");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CommunityPlans_UserId",
+                table: "CommunityPlans",
+                column: "UserId");
+
             migrationBuilder.CreateIndex(
                 name: "IX_PaymentTransactions_SubscriptionId",
                 table: "PaymentTransactions",
@@ -407,6 +530,21 @@ namespace Planify.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_PaymentTransactions_UserId",
                 table: "PaymentTransactions",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanCopies_CommunityPlanId",
+                table: "PlanCopies",
+                column: "CommunityPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanCopies_NewPlanId",
+                table: "PlanCopies",
+                column: "NewPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanCopies_UserId",
+                table: "PlanCopies",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
@@ -503,7 +641,13 @@ namespace Planify.Infrastructure.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "CommunityPlanLikes");
+
+            migrationBuilder.DropTable(
                 name: "PaymentTransactions");
+
+            migrationBuilder.DropTable(
+                name: "PlanCopies");
 
             migrationBuilder.DropTable(
                 name: "PlanTasks");
@@ -530,13 +674,16 @@ namespace Planify.Infrastructure.Migrations
                 name: "UserSubscriptions");
 
             migrationBuilder.DropTable(
-                name: "Plans");
+                name: "CommunityPlans");
 
             migrationBuilder.DropTable(
                 name: "Roles");
 
             migrationBuilder.DropTable(
                 name: "SubscriptionPlans");
+
+            migrationBuilder.DropTable(
+                name: "Plans");
 
             migrationBuilder.DropTable(
                 name: "PlanTemplates");
