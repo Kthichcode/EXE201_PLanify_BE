@@ -43,16 +43,20 @@ public class PlanRepository : IPlanRepository
 
     public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
     {
-        await using var tx = await _context.Database.BeginTransactionAsync(ct);
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            await action();
-            await tx.CommitAsync(ct);
-        }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+            await using var tx = await _context.Database.BeginTransactionAsync(ct);
+            try
+            {
+                await action();
+                await tx.CommitAsync(ct);
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        });
     }
 }
