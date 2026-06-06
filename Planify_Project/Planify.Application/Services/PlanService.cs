@@ -591,4 +591,13 @@ public class PlanService : IPlanService
 
         return rootTasks;
     }
+
+    public async Task DeletePlanAsync(Guid planId, Guid userId)
+    {
+        var plan = await _planRepository.GetByIdAsync(planId);
+        if (plan == null || plan.UserId != userId) throw new KeyNotFoundException("Plan not found or access denied.");
+
+        await _planRepository.DeleteAsync(plan);
+        await _planRepository.SaveChangesAsync();
+    }
 }

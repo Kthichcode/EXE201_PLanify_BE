@@ -2,10 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planify.Application.DTOs.Plans;
 using Planify.Application.Interfaces;
+using Planify.Application.Services;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
-
+using System.Collections.Generic;
 namespace Planify.API.Controllers;
 
 [ApiController]
@@ -170,4 +171,51 @@ public class PlansController : ControllerBase
             return StatusCode(500, new { error = "Có lỗi xảy ra khi hủy bản nháp.", details = ex.Message });
         }
     }
+
+
+    
+[HttpGet]
+public async Task<IActionResult> GetPlans()
+{
+    var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+    {
+        return Unauthorized("User ID not found or invalid.");
+    }
+
+    try
+    {
+        var plans = await _planService.GetPlansByUserIdAsync(userId);
+        return Ok(plans);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, "An error occurred while retrieving plans. " + ex.Message);
+    }
+}
+
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeletePlan(Guid id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized("User ID not found or invalid.");
+
+        try
+        {
+            await _planService.DeletePlanAsync(id, userId);
+            return Ok(new { message = "Kế hoạch đã được xóa thành công." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi xóa kế hoạch.", details = ex.Message });
+        }
+    }
+
+
 }
