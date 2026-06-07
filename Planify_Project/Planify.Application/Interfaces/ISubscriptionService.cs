@@ -19,4 +19,5 @@ public interface ISubscriptionService
     Task<ResponseDto<SubscriptionPlanDto>> CreatePlanAsync(CreateSubscriptionPlanDto dto);
     Task<ResponseDto<SubscriptionPlanDto>> UpdatePlanAsync(Guid id, UpdateSubscriptionPlanDto dto);
     Task<ResponseDto<bool>> DeactivatePlanAsync(Guid id);
+    Task<ResponseDto<RevenueStatisticsDto>> GetRevenueStatisticsAsync(CancellationToken ct = default);
 }

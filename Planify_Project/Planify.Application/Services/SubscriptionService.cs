@@ -74,11 +74,12 @@ public class SubscriptionService : ISubscriptionService
         if (plan == null || !plan.IsActive)
             return ResponseDto<UpgradeSubscriptionResultDto>.Fail("Gói dịch vụ không tồn tại hoặc đã bị ngừng hoạt động.", 404);
 
-        if (dto.PaymentMethod.Equals("PayOS", StringComparison.OrdinalIgnoreCase))
+        if (dto.PaymentMethod.Equals("SePay", StringComparison.OrdinalIgnoreCase) || 
+            dto.PaymentMethod.Equals("PayOS", StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(dto.ReturnUrl) || string.IsNullOrEmpty(dto.CancelUrl))
             {
-                return ResponseDto<UpgradeSubscriptionResultDto>.Fail("ReturnUrl và CancelUrl là bắt buộc khi chọn thanh toán qua PayOS.", 400);
+                return ResponseDto<UpgradeSubscriptionResultDto>.Fail("ReturnUrl và CancelUrl là bắt buộc khi chọn thanh toán trực tuyến.", 400);
             }
 
             // 1. Generate unique order code
@@ -108,7 +109,7 @@ public class SubscriptionService : ISubscriptionService
                 Amount         = plan.Price,
                 Currency       = "VND",
                 Status         = "pending",
-                PaymentMethod  = "PayOS",
+                PaymentMethod  = dto.PaymentMethod,
                 PaymentRef     = orderCode.ToString(),
                 PaidAt         = null,
                 CreatedAt      = DateTime.UtcNow
@@ -117,7 +118,7 @@ public class SubscriptionService : ISubscriptionService
             await _repo.AddPaymentTransactionAsync(txn);
             await _repo.SaveChangesAsync();
 
-            // 4. Call PayOS API to get Payment Url
+            // 4. Call Payment API to get Payment Url
             string checkoutUrl;
             try
             {
@@ -134,7 +135,7 @@ public class SubscriptionService : ISubscriptionService
                 newSub.Status = "cancelled";
                 txn.Status = "failed";
                 await _repo.SaveChangesAsync();
-                return ResponseDto<UpgradeSubscriptionResultDto>.Fail($"Lỗi khi tạo liên kết thanh toán PayOS: {ex.Message}", 500);
+                return ResponseDto<UpgradeSubscriptionResultDto>.Fail($"Lỗi khi tạo liên kết thanh toán: {ex.Message}", 500);
             }
 
             return ResponseDto<UpgradeSubscriptionResultDto>.Success(new UpgradeSubscriptionResultDto
@@ -336,6 +337,40 @@ public class SubscriptionService : ISubscriptionService
 
         await _repo.SaveChangesAsync();
         return ResponseDto<bool>.Success(true, "Vô hiệu hóa gói dịch vụ thành công.");
+    }
+
+    public async Task<ResponseDto<RevenueStatisticsDto>> GetRevenueStatisticsAsync(CancellationToken ct = default)
+    {
+        var txs = await _repo.GetSuccessfulTransactionsAsync(ct);
+
+        var stats = new RevenueStatisticsDto();
+        stats.TotalRevenue = txs.Sum(t => t.Amount);
+
+        // Group by Month
+        stats.MonthlyRevenue = txs
+            .GroupBy(t => new { Year = (t.PaidAt ?? t.CreatedAt).Year, Month = (t.PaidAt ?? t.CreatedAt).Month })
+            .Select(g => new MonthlyRevenueDto
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Revenue = g.Sum(t => t.Amount)
+            })
+            .OrderByDescending(g => g.Year)
+            .ThenByDescending(g => g.Month)
+            .ToList();
+
+        // Group by Year
+        stats.YearlyRevenue = txs
+            .GroupBy(t => (t.PaidAt ?? t.CreatedAt).Year)
+            .Select(g => new YearlyRevenueDto
+            {
+                Year = g.Key,
+                Revenue = g.Sum(t => t.Amount)
+            })
+            .OrderByDescending(g => g.Year)
+            .ToList();
+
+        return ResponseDto<RevenueStatisticsDto>.Success(stats, "Lấy thống kê doanh thu thành công.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

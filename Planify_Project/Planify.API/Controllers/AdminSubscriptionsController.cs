@@ -77,4 +77,15 @@ public class AdminSubscriptionsController : ControllerBase
         var response = await _subscriptionService.DeactivatePlanAsync(id);
         return StatusCode(response.StatusCode, response);
     }
+
+    /// <summary>
+    /// Lấy thống kê doanh thu tổng, theo tháng và theo năm (Admin)
+    /// </summary>
+    [HttpGet("statistics")]
+    [ProducesResponseType(typeof(ResponseDto<RevenueStatisticsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetRevenueStatistics()
+    {
+        var response = await _subscriptionService.GetRevenueStatisticsAsync();
+        return StatusCode(response.StatusCode, response);
+    }
 }

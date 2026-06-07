@@ -24,6 +24,7 @@ public interface ISubscriptionRepository
     // PaymentTransaction
     Task AddPaymentTransactionAsync(PaymentTransaction transaction, CancellationToken ct = default);
     Task<PaymentTransaction?> GetPaymentTransactionByRefAsync(string paymentRef, CancellationToken ct = default);
+    Task<List<PaymentTransaction>> GetSuccessfulTransactionsAsync(CancellationToken ct = default);
 
     Task SaveChangesAsync(CancellationToken ct = default);
 }
