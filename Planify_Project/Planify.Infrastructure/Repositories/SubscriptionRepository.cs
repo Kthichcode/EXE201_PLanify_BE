@@ -56,6 +56,16 @@ public class SubscriptionRepository : ISubscriptionRepository
     public async Task AddPaymentTransactionAsync(PaymentTransaction transaction, CancellationToken ct = default)
         => await _context.PaymentTransactions.AddAsync(transaction, ct);
 
+    public async Task<PaymentTransaction?> GetPaymentTransactionByRefAsync(string paymentRef, CancellationToken ct = default)
+        => await _context.PaymentTransactions
+            .Include(t => t.Subscription)
+            .FirstOrDefaultAsync(t => t.PaymentRef == paymentRef, ct);
+
+    public async Task<List<PaymentTransaction>> GetSuccessfulTransactionsAsync(CancellationToken ct = default)
+        => await _context.PaymentTransactions
+            .Where(t => t.Status == "success")
+            .ToListAsync(ct);
+
     public async Task SaveChangesAsync(CancellationToken ct = default)
         => await _context.SaveChangesAsync(ct);
 }

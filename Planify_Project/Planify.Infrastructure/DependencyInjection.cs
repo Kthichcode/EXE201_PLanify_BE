@@ -75,6 +75,12 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, EmailService>();
         services.AddHostedService<DeadlineNotificationJob>();
 
+        // ── SePay Payment Gateway ─────────────────────────────────────────────
+        services.AddHttpClient<IPaymentService, PaymentService>(client =>
+        {
+            client.BaseAddress = new Uri("https://my.sepay.vn");
+        });
+
         return services;
     }
 }
