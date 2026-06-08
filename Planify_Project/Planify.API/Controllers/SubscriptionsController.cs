@@ -8,6 +8,10 @@ using System;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.IO;
 
 namespace Planify.API.Controllers;
 
@@ -89,44 +93,106 @@ public class SubscriptionsController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
-    /// <summary>
-    /// Webhook nhận thông báo thanh toán từ SePay (Server-to-Server IPN)
-    /// </summary>
     [HttpPost("sepay-webhook")]
     [AllowAnonymous]
-    public async Task<IActionResult> HandleSePayWebhook([FromBody] SePayWebhookDto body)
+    public async Task<IActionResult> HandleSePayWebhook()
     {
         try
         {
-            if (body == null)
+            // 1. Đọc raw body của request để phục vụ tính chữ ký HMAC-SHA256
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                rawBody = await reader.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(rawBody))
             {
                 return BadRequest(ResponseDto<bool>.Fail("Dữ liệu webhook không hợp lệ.", 400));
             }
 
-            // 1. Xác thực Webhook Security
-            var authHeader = Request.Headers["Authorization"].ToString();
-            var expectedApiKey = _configuration["SePay:ApiKey"];
-            if (!string.IsNullOrEmpty(expectedApiKey))
+            // 2. Xác thực Webhook Security bằng HMAC-SHA256 signature
+            var signatureHeader = Request.Headers["X-SePay-Signature"].ToString();
+            var timestampHeader = Request.Headers["X-SePay-Timestamp"].ToString();
+            var webhookSecret = _configuration["SePay:WebhookSecret"] ?? "nihaoma";
+
+            if (!string.IsNullOrEmpty(signatureHeader) && !string.IsNullOrEmpty(timestampHeader))
             {
-                if (string.IsNullOrEmpty(authHeader) || !authHeader.Contains(expectedApiKey))
+                var message = $"{timestampHeader}.{rawBody}";
+                var keyBytes = Encoding.UTF8.GetBytes(webhookSecret);
+                var messageBytes = Encoding.UTF8.GetBytes(message);
+
+                using var hmac = new HMACSHA256(keyBytes);
+                var hashBytes = hmac.ComputeHash(messageBytes);
+                var computedHash = Convert.ToHexString(hashBytes).ToLower();
+                var expectedSignature = $"sha256={computedHash}";
+
+                if (!signatureHeader.Equals(expectedSignature, StringComparison.OrdinalIgnoreCase))
                 {
-                    return Unauthorized(ResponseDto<bool>.Fail("Xác thực webhook SePay thất bại.", 401));
+                    return Unauthorized(ResponseDto<bool>.Fail("Xác thực chữ ký webhook SePay thất bại.", 401));
+                }
+            }
+            else
+            {
+                // Fallback: Xác thực bằng Authorization header cũ nếu không có signature
+                var authHeader = Request.Headers["Authorization"].ToString();
+                var expectedApiKey = _configuration["SePay:ApiKey"];
+                if (!string.IsNullOrEmpty(expectedApiKey))
+                {
+                    if (string.IsNullOrEmpty(authHeader) || !authHeader.Contains(expectedApiKey))
+                    {
+                        return Unauthorized(ResponseDto<bool>.Fail("Xác thực webhook SePay thất bại (thiếu chữ ký và Authorization không hợp lệ).", 401));
+                    }
+                }
+                else
+                {
+                    return Unauthorized(ResponseDto<bool>.Fail("Xác thực webhook SePay thất bại (thiếu thông tin xác thực).", 401));
                 }
             }
 
-            // 2. Trích xuất orderCode từ content chuyển khoản hoặc trường code
-            long orderCode = 0;
-            var memo = body.Content ?? string.Empty;
-            var match = Regex.Match(memo, @"PLNFY(\d+)", RegexOptions.IgnoreCase);
-            
-            if (!match.Success && !string.IsNullOrEmpty(body.Code))
+            // 3. Giải mã JSON body thủ công
+            var body = JsonSerializer.Deserialize<SePayWebhookDto>(rawBody, new JsonSerializerOptions
             {
-                match = Regex.Match(body.Code, @"PLNFY(\d+)", RegexOptions.IgnoreCase);
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (body == null)
+            {
+                return BadRequest(ResponseDto<bool>.Fail("Không thể phân tích dữ liệu webhook.", 400));
             }
 
-            if (match.Success && long.TryParse(match.Groups[1].Value, out var parsedCode))
+            // 4. Trích xuất orderCode từ content chuyển khoản hoặc trường code
+            long orderCode = 0;
+            var memo = body.Content ?? string.Empty;
+            
+            // Tìm dạng PLNFY followed by optional non-digits, then digits (hỗ trợ cả dấu ngoặc đơn, khoảng trắng...)
+            var match = Regex.Match(memo, @"PLNFY[^\d]*(\d+)", RegexOptions.IgnoreCase);
+            if (!match.Success)
             {
-                orderCode = parsedCode;
+                // Tìm dạng số đơn thuần có độ dài từ 12 chữ số trở lên
+                match = Regex.Match(memo, @"\d{12,}");
+            }
+            
+            // Thử tìm trong trường code của webhook nếu trong content chưa thấy
+            if (!match.Success && !string.IsNullOrEmpty(body.Code))
+            {
+                match = Regex.Match(body.Code, @"PLNFY[^\d]*(\d+)", RegexOptions.IgnoreCase);
+                if (!match.Success)
+                {
+                    match = Regex.Match(body.Code, @"\d{12,}");
+                }
+            }
+
+            if (match.Success)
+            {
+                var codeString = match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value)
+                    ? match.Groups[1].Value
+                    : match.Value;
+
+                if (long.TryParse(codeString, out var parsedCode))
+                {
+                    orderCode = parsedCode;
+                }
             }
 
             if (orderCode == 0)
@@ -134,7 +200,7 @@ public class SubscriptionsController : ControllerBase
                 return BadRequest(ResponseDto<bool>.Fail("Không trích xuất được mã đơn hàng từ nội dung chuyển khoản.", 400));
             }
 
-            // 3. Cập nhật trạng thái thanh toán thành công trong database
+            // 5. Cập nhật trạng thái thanh toán thành công trong database
             var confirmResult = await _subscriptionService.ConfirmPaymentAsync(orderCode, "PAID", body.ReferenceCode);
             if (confirmResult.StatusCode < 200 || confirmResult.StatusCode >= 300)
             {
@@ -204,7 +270,7 @@ public class SubscriptionsController : ControllerBase
         var accountName = _configuration["SePay:AccountName"] ?? "NGUYEN DANG KHOA";
 
         var description = $"PLNFY{orderCode}";
-        var qrUrl = $"https://qr.sepay.vn/img?acc={bankAccount}&bank={bankName}&amount={txn.Amount}&des={description}";
+        var qrUrl = $"https://qr.sepay.vn/img?bank={bankName}&acc={bankAccount}&template=compact&amount={txn.Amount}&des={description}";
 
         return Ok(ResponseDto<object>.Success(new
         {

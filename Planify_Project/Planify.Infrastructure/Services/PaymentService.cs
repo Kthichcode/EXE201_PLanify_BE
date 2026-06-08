@@ -23,15 +23,13 @@ public class PaymentService : IPaymentService
 
     public Task<string> CreatePaymentLinkAsync(long orderCode, decimal amount, string description, string returnUrl, string cancelUrl)
     {
-        // Trả về relative URL dẫn tới trang checkout.html tự phục vụ
-        // Các tham số cần thiết được truyền qua query string để checkout.html hiển thị
-        var relativeUrl = $"/checkout.html?orderCode={orderCode}" +
-                          $"&amount={amount}" +
-                          $"&description=PLNFY{orderCode}" +
-                          $"&returnUrl={Uri.EscapeDataString(returnUrl)}" +
-                          $"&cancelUrl={Uri.EscapeDataString(cancelUrl)}";
+        var bankName = _configuration["SePay:BankName"] ?? "TPBank";
+        var bankAccount = _configuration["SePay:BankAccount"] ?? "11140845389";
+        var transferDes = $"PLNFY{orderCode}";
+        
+        var qrUrl = $"https://qr.sepay.vn/img?bank={bankName}&acc={bankAccount}&template=compact&amount={amount.ToString("0")}&des={transferDes}";
 
-        return Task.FromResult(relativeUrl);
+        return Task.FromResult(qrUrl);
     }
 
     public async Task<(string Status, string TransactionId)> GetPaymentStatusAsync(long orderCode)
