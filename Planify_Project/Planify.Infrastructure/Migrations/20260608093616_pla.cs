@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Planify.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class hehe : Migration
+    public partial class pla : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
