@@ -11,6 +11,7 @@ public interface IUserRepository
 {
     Task<UserAccountDto?> FindByEmailAsync(string email);
     Task<UserAccountDto?> FindByIdAsync(Guid id);
+    Task<List<UserAccountDto>> GetAllUsersAsync();
 
     /// <summary>Tạo user với password (Register thường).</summary>
     Task<(bool Succeeded, IEnumerable<string> Errors)> CreateWithPasswordAsync(
