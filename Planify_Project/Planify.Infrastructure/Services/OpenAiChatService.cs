@@ -62,6 +62,29 @@ public class OpenAiChatService : IAiChatService
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
         """;
 
+    // ── System prompt REFINE PLAN (AI chỉnh sửa kế hoạch hiện tại theo yêu cầu) ──
+    private const string RefinePlanSystemPrompt =
+        """
+        Bạn là Planify AI. Nhiệm vụ: nhận kế hoạch JSON hiện tại và chỉnh sửa theo yêu cầu của người dùng.
+
+        QUY TẮC BẮT BUỘC:
+        1. CHỈ trả về JSON thuần - không giải thích, không markdown, không backtick.
+        2. Giữ nguyên schema JSON gốc, chỉ thay đổi nội dung theo yêu cầu.
+        3. Ngôn ngữ trong JSON: Tiếng Việt.
+        4. Tối thiểu 4 tasks, mỗi task tối thiểu 3 subtasks (kể cả sau khi chỉnh sửa).
+        5. Description của Plan/Task/Subtask KHÔNG ĐỂ TRỐNG.
+        6. Priority: "low"|"medium"|"high"|"critical". Status: "todo". Progress: 0.
+        7. OrderIndex bắt đầu từ 1, tăng dần trong cùng cấp.
+        8. DueDate subtask nằm trong [StartDate, DueDate] của task cha.
+        9. DueDate task nằm trong [StartDate kế hoạch, Deadline].
+        10. totalTasks và totalSubtasks phải đếm lại chính xác sau khi chỉnh sửa.
+        11. metadata.message phải mô tả ngắn gọn những gì đã được chỉnh sửa.
+
+        SCHEMA JSON (không thêm bớt field):
+        {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
+        """;
+
+
     public OpenAiChatService(
         HttpClient httpClient,
         IConfiguration configuration,
@@ -179,7 +202,74 @@ public class OpenAiChatService : IAiChatService
         };
     }
 
-    // ── HELPER ───────────────────────────────────────────────────────────
+    // ── REFINE PLAN ───────────────────────────────────────────────────────
+
+    public async Task<GeneratePlanResponseDto> RefinePlanAsync(
+        string currentPlanJson,
+        string instruction,
+        CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+
+        var today = DateTime.UtcNow.AddHours(7).ToString("yyyy-MM-dd");
+
+        var userMessage =
+            $"""
+            Ngày hôm nay: {today}
+            Kế hoạch hiện tại (JSON):
+            {currentPlanJson}
+
+            Yêu cầu chỉnh sửa: {instruction}
+            """;
+
+        var messages = new List<OpenAiMessage>
+        {
+            new() { Role = "system", Content = RefinePlanSystemPrompt },
+            new() { Role = "user",   Content = userMessage }
+        };
+
+        _logger.LogInformation("Refining plan via OpenAI: instruction={Instruction}", instruction);
+
+        var reply = await CallOpenAiAsync(
+            messages,
+            maxTokens: 3500,
+            cancellationToken);
+
+        sw.Stop();
+        _logger.LogDebug("OpenAI refine response ({ElapsedMs}ms):\n{Raw}", sw.ElapsedMilliseconds, reply.Content);
+
+        var jsonContent = ExtractJson(reply.Content);
+        JsonObject planData;
+        try
+        {
+            var node = JsonNode.Parse(jsonContent);
+            if (node is not JsonObject obj)
+            {
+                _logger.LogError("AI trả về JSON không phải object khi refine. Raw:\n{Raw}", reply.Content);
+                throw new InvalidOperationException("AI không trả về JSON object hợp lệ. Vui lòng thử lại.");
+            }
+            planData = obj;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON parse thất bại khi refine. Raw AI response:\n{Raw}", reply.Content);
+            throw new InvalidOperationException(
+                $"AI không trả về JSON hợp lệ. Chi tiết: {ex.Message}. Vui lòng thử lại.", ex);
+        }
+
+        var message = planData["metadata"]?["message"]?.GetValue<string>()
+            ?? "Kế hoạch đã được chỉnh sửa thành công!";
+
+        return new GeneratePlanResponseDto
+        {
+            PlanData  = planData,
+            Message   = message,
+            Model     = reply.Model,
+            ElapsedMs = sw.ElapsedMilliseconds
+        };
+    }
+
+
 
     private async Task<(string Content, string Model)> CallOpenAiAsync(
         List<OpenAiMessage> messages,

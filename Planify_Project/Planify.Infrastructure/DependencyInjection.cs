@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
         services.AddScoped<IPlanFrameworkRepository, PlanFrameworkRepository>();
         services.AddScoped<IPlanTemplateRepository,  PlanTemplateRepository>();
+        services.AddScoped<ICommunityPlanRepository, CommunityPlanRepository>();
 
         // ── Application Services (business logic thuần, không phụ thuộc infra) ─
         services.AddScoped<IAuthService,         AuthService>();
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<IPlanFrameworkService, PlanFrameworkService>();
         services.AddScoped<IPlanTemplateService,  PlanTemplateService>();
+        services.AddScoped<ICommunityPlanService, CommunityPlanService>();
 
         // ── OpenAI Chat Service (HttpClient + external API) ───────────────────
         services.AddHttpClient<IAiChatService, OpenAiChatService>(client =>
@@ -67,6 +69,12 @@ public static class DependencyInjection
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.AddScoped<IEmailService, EmailService>();
         services.AddHostedService<DeadlineNotificationJob>();
+
+        // ── SePay Payment Gateway ─────────────────────────────────────────────
+        services.AddHttpClient<IPaymentService, PaymentService>(client =>
+        {
+            client.BaseAddress = new Uri("https://my.sepay.vn");
+        });
 
         return services;
     }

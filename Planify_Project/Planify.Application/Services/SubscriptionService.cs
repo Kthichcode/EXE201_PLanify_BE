@@ -9,10 +9,12 @@ namespace Planify.Application.Services;
 public class SubscriptionService : ISubscriptionService
 {
     private readonly ISubscriptionRepository _repo;
+    private readonly IPaymentService _paymentService;
 
-    public SubscriptionService(ISubscriptionRepository repo)
+    public SubscriptionService(ISubscriptionRepository repo, IPaymentService paymentService)
     {
         _repo = repo;
+        _paymentService = paymentService;
     }
 
     public async Task<ResponseDto<IEnumerable<SubscriptionPlanDto>>> GetActivePlansAsync()
@@ -66,62 +68,203 @@ public class SubscriptionService : ISubscriptionService
             "Lấy thông tin gói sử dụng thành công.");
     }
 
-    public async Task<ResponseDto<UserSubscriptionDto>> UpgradeSubscriptionAsync(Guid userId, UpgradeSubscriptionRequestDto dto)
+    public async Task<ResponseDto<UpgradeSubscriptionResultDto>> UpgradeSubscriptionAsync(Guid userId, UpgradeSubscriptionRequestDto dto)
     {
         var plan = await _repo.GetPlanByIdAsync(dto.PlanId);
         if (plan == null || !plan.IsActive)
-            return ResponseDto<UserSubscriptionDto>.Fail("Gói dịch vụ không tồn tại hoặc đã bị ngừng hoạt động.", 404);
+            return ResponseDto<UpgradeSubscriptionResultDto>.Fail("Gói dịch vụ không tồn tại hoặc đã bị ngừng hoạt động.", 404);
 
-        var activeSubs = await _repo.GetActiveUserSubscriptionsAsync(userId);
-        foreach (var sub in activeSubs)
+        if (dto.PaymentMethod.Equals("SePay", StringComparison.OrdinalIgnoreCase) || 
+            dto.PaymentMethod.Equals("PayOS", StringComparison.OrdinalIgnoreCase))
         {
-            sub.Status      = "cancelled";
-            sub.CancelledAt = DateTime.UtcNow;
-            sub.UpdatedAt   = DateTime.UtcNow;
+            if (string.IsNullOrEmpty(dto.ReturnUrl) || string.IsNullOrEmpty(dto.CancelUrl))
+            {
+                return ResponseDto<UpgradeSubscriptionResultDto>.Fail("ReturnUrl và CancelUrl là bắt buộc khi chọn thanh toán trực tuyến.", 400);
+            }
+
+            // 1. Generate unique order code
+            long orderCode = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000L + Random.Shared.Next(0, 1000);
+
+            // 2. Create pending UserSubscription
+            var newSub = new UserSubscription
+            {
+                UserId         = userId,
+                PlanId         = plan.Id,
+                Status         = "pending",
+                StartedAt      = DateTime.UtcNow,
+                ExpiresAt      = null, // Will be set when payment succeeds
+                AiRequestsUsed = 0,
+                CreatedAt      = DateTime.UtcNow,
+                UpdatedAt      = DateTime.UtcNow
+            };
+
+            await _repo.AddUserSubscriptionAsync(newSub);
+            await _repo.SaveChangesAsync();
+
+            // 3. Create pending PaymentTransaction
+            var txn = new PaymentTransaction
+            {
+                UserId         = userId,
+                SubscriptionId = newSub.Id,
+                Amount         = plan.Price,
+                Currency       = "VND",
+                Status         = "pending",
+                PaymentMethod  = dto.PaymentMethod,
+                PaymentRef     = orderCode.ToString(),
+                PaidAt         = null,
+                CreatedAt      = DateTime.UtcNow
+            };
+
+            await _repo.AddPaymentTransactionAsync(txn);
+            await _repo.SaveChangesAsync();
+
+            // 4. Call Payment API to get Payment Url
+            string checkoutUrl;
+            try
+            {
+                checkoutUrl = await _paymentService.CreatePaymentLinkAsync(
+                    orderCode,
+                    plan.Price,
+                    $"Planify {plan.Name}",
+                    dto.ReturnUrl,
+                    dto.CancelUrl
+                );
+            }
+            catch (Exception ex)
+            {
+                newSub.Status = "cancelled";
+                txn.Status = "failed";
+                await _repo.SaveChangesAsync();
+                return ResponseDto<UpgradeSubscriptionResultDto>.Fail($"Lỗi khi tạo liên kết thanh toán: {ex.Message}", 500);
+            }
+
+            return ResponseDto<UpgradeSubscriptionResultDto>.Success(new UpgradeSubscriptionResultDto
+            {
+                Subscription = MapToUserSubscriptionDto(newSub),
+                PaymentUrl = checkoutUrl
+            }, "Tạo liên kết thanh toán thành công.");
+        }
+        else
+        {
+            var activeSubs = await _repo.GetActiveUserSubscriptionsAsync(userId);
+            foreach (var sub in activeSubs)
+            {
+                sub.Status      = "cancelled";
+                sub.CancelledAt = DateTime.UtcNow;
+                sub.UpdatedAt   = DateTime.UtcNow;
+            }
+
+            DateTime? expiresAt = plan.BillingCycle.ToLower() switch
+            {
+                "monthly" => DateTime.UtcNow.AddMonths(1),
+                "yearly"  => DateTime.UtcNow.AddYears(1),
+                _         => null
+            };
+
+            var newSub = new UserSubscription
+            {
+                UserId         = userId,
+                PlanId         = plan.Id,
+                Status         = "active",
+                StartedAt      = DateTime.UtcNow,
+                ExpiresAt      = expiresAt,
+                AiRequestsUsed = 0,
+                CreatedAt      = DateTime.UtcNow,
+                UpdatedAt      = DateTime.UtcNow,
+                Plan           = plan
+            };
+
+            await _repo.AddUserSubscriptionAsync(newSub);
+            await _repo.SaveChangesAsync();
+
+            var txn = new PaymentTransaction
+            {
+                UserId         = userId,
+                SubscriptionId = newSub.Id,
+                Amount         = plan.Price,
+                Currency       = "VND",
+                Status         = "success",
+                PaymentMethod  = dto.PaymentMethod,
+                PaymentRef     = "TXN_" + Guid.NewGuid().ToString("N")[..12].ToUpper(),
+                PaidAt         = DateTime.UtcNow,
+                CreatedAt      = DateTime.UtcNow
+            };
+
+            await _repo.AddPaymentTransactionAsync(txn);
+            await _repo.SaveChangesAsync();
+
+            return ResponseDto<UpgradeSubscriptionResultDto>.Success(new UpgradeSubscriptionResultDto
+            {
+                Subscription = MapToUserSubscriptionDto(newSub),
+                PaymentUrl = null
+            }, "Nâng cấp gói dịch vụ thành công (Simulation).");
+        }
+    }
+
+    public async Task<ResponseDto<bool>> ConfirmPaymentAsync(long orderCode, string status, string paymentRef, CancellationToken ct = default)
+    {
+        var txn = await _repo.GetPaymentTransactionByRefAsync(orderCode.ToString(), ct);
+        if (txn == null)
+            return ResponseDto<bool>.Fail("Không tìm thấy giao dịch tương ứng.", 404);
+
+        if (txn.Status == "success")
+            return ResponseDto<bool>.Success(true, "Giao dịch đã được xử lý trước đó.");
+
+        if (status.Equals("PAID", StringComparison.OrdinalIgnoreCase) || status.Equals("success", StringComparison.OrdinalIgnoreCase))
+        {
+            txn.Status = "success";
+            txn.PaidAt = DateTime.UtcNow;
+            if (!string.IsNullOrEmpty(paymentRef))
+            {
+                txn.PaymentRef = paymentRef;
+            }
+
+            var sub = txn.Subscription;
+            if (sub != null)
+            {
+                sub.Status = "active";
+                sub.StartedAt = DateTime.UtcNow;
+
+                var plan = await _repo.GetPlanByIdAsync(sub.PlanId, ct);
+                if (plan != null)
+                {
+                    sub.ExpiresAt = plan.BillingCycle.ToLower() switch
+                    {
+                        "monthly" => DateTime.UtcNow.AddMonths(1),
+                        "yearly"  => DateTime.UtcNow.AddYears(1),
+                        _         => null
+                    };
+                }
+                sub.UpdatedAt = DateTime.UtcNow;
+
+                // Deactivate other active subscriptions
+                var activeSubs = await _repo.GetActiveUserSubscriptionsAsync(txn.UserId, ct);
+                foreach (var otherSub in activeSubs)
+                {
+                    if (otherSub.Id != sub.Id)
+                    {
+                        otherSub.Status = "cancelled";
+                        otherSub.CancelledAt = DateTime.UtcNow;
+                        otherSub.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+        }
+        else if (status.Equals("CANCELLED", StringComparison.OrdinalIgnoreCase) || status.Equals("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            txn.Status = "failed";
+
+            var sub = txn.Subscription;
+            if (sub != null)
+            {
+                sub.Status = "cancelled";
+                sub.CancelledAt = DateTime.UtcNow;
+                sub.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
-        DateTime? expiresAt = plan.BillingCycle.ToLower() switch
-        {
-            "monthly" => DateTime.UtcNow.AddMonths(1),
-            "yearly"  => DateTime.UtcNow.AddYears(1),
-            _         => null
-        };
-
-        var newSub = new UserSubscription
-        {
-            UserId         = userId,
-            PlanId         = plan.Id,
-            Status         = "active",
-            StartedAt      = DateTime.UtcNow,
-            ExpiresAt      = expiresAt,
-            AiRequestsUsed = 0,
-            CreatedAt      = DateTime.UtcNow,
-            UpdatedAt      = DateTime.UtcNow,
-            Plan           = plan
-        };
-
-        await _repo.AddUserSubscriptionAsync(newSub);
-        await _repo.SaveChangesAsync();
-
-        var txn = new PaymentTransaction
-        {
-            UserId         = userId,
-            SubscriptionId = newSub.Id,
-            Amount         = plan.Price,
-            Currency       = "VND",
-            Status         = "success",
-            PaymentMethod  = dto.PaymentMethod,
-            PaymentRef     = "TXN_" + Guid.NewGuid().ToString("N")[..12].ToUpper(),
-            PaidAt         = DateTime.UtcNow,
-            CreatedAt      = DateTime.UtcNow
-        };
-
-        await _repo.AddPaymentTransactionAsync(txn);
-        await _repo.SaveChangesAsync();
-
-        return ResponseDto<UserSubscriptionDto>.Success(
-            MapToUserSubscriptionDto(newSub),
-            "Nâng cấp gói dịch vụ thành công.");
+        await _repo.SaveChangesAsync(ct);
+        return ResponseDto<bool>.Success(true, "Cập nhật trạng thái giao dịch thành công.");
     }
 
     public async Task<ResponseDto<IEnumerable<SubscriptionPlanDto>>> GetAllPlansAsync()
@@ -194,6 +337,40 @@ public class SubscriptionService : ISubscriptionService
 
         await _repo.SaveChangesAsync();
         return ResponseDto<bool>.Success(true, "Vô hiệu hóa gói dịch vụ thành công.");
+    }
+
+    public async Task<ResponseDto<RevenueStatisticsDto>> GetRevenueStatisticsAsync(CancellationToken ct = default)
+    {
+        var txs = await _repo.GetSuccessfulTransactionsAsync(ct);
+
+        var stats = new RevenueStatisticsDto();
+        stats.TotalRevenue = txs.Sum(t => t.Amount);
+
+        // Group by Month
+        stats.MonthlyRevenue = txs
+            .GroupBy(t => new { Year = (t.PaidAt ?? t.CreatedAt).Year, Month = (t.PaidAt ?? t.CreatedAt).Month })
+            .Select(g => new MonthlyRevenueDto
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Revenue = g.Sum(t => t.Amount)
+            })
+            .OrderByDescending(g => g.Year)
+            .ThenByDescending(g => g.Month)
+            .ToList();
+
+        // Group by Year
+        stats.YearlyRevenue = txs
+            .GroupBy(t => (t.PaidAt ?? t.CreatedAt).Year)
+            .Select(g => new YearlyRevenueDto
+            {
+                Year = g.Key,
+                Revenue = g.Sum(t => t.Amount)
+            })
+            .OrderByDescending(g => g.Year)
+            .ToList();
+
+        return ResponseDto<RevenueStatisticsDto>.Success(stats, "Lấy thống kê doanh thu thành công.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

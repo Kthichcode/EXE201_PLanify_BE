@@ -10,4 +10,7 @@ public class UpgradeSubscriptionRequestDto
 
     [Required(ErrorMessage = "Phương thức thanh toán là bắt buộc.")]
     public string PaymentMethod { get; set; } = "Simulation";
+
+    public string? ReturnUrl { get; set; }
+    public string? CancelUrl { get; set; }
 }
