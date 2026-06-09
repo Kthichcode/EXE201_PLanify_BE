@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Planify.Infrastructure;
+using Planify.Infrastructure.Data;
 using System.Text;
-using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,7 +138,15 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Auto-apply EF Core migrations (cần thiết khi chạy trong Docker)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+    Console.WriteLine("Database migration applied.");
+}
+
 // Seed initial data (roles + admin user)
-await Planify.Infrastructure.Data.DataSeeder.SeedAsync(app.Services);
+await DataSeeder.SeedAsync(app.Services);
 
 app.Run();
