@@ -214,10 +214,6 @@ public class SubscriptionService : ISubscriptionService
         {
             txn.Status = "success";
             txn.PaidAt = DateTime.UtcNow;
-            if (!string.IsNullOrEmpty(paymentRef))
-            {
-                txn.PaymentRef = paymentRef;
-            }
 
             var sub = txn.Subscription;
             if (sub != null)
