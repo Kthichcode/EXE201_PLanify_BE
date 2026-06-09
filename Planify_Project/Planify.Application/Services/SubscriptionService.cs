@@ -365,6 +365,25 @@ public class SubscriptionService : ISubscriptionService
             })
             .OrderByDescending(g => g.Year)
             .ToList();
+        // Group by Day
+        stats.DailyRevenue = txs
+            .GroupBy(t => new
+            {
+                Year = (t.PaidAt ?? t.CreatedAt).Year,
+                Month = (t.PaidAt ?? t.CreatedAt).Month,
+                Day = (t.PaidAt ?? t.CreatedAt).Day
+            })
+            .Select(g => new DailyRevenueDto
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Day = g.Key.Day,
+                Revenue = g.Sum(t => t.Amount)
+            })
+            .OrderByDescending(g => g.Year)
+            .ThenByDescending(g => g.Month)
+            .ThenByDescending(g => g.Day)
+            .ToList();
 
         return ResponseDto<RevenueStatisticsDto>.Success(stats, "Lấy thống kê doanh thu thành công.");
     }
@@ -403,4 +422,5 @@ public class SubscriptionService : ISubscriptionService
         MaxPlans            = sub.Plan?.MaxPlans,
         CancelledAt         = sub.CancelledAt
     };
+
 }

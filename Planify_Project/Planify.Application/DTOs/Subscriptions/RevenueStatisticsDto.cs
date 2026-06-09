@@ -7,6 +7,7 @@ public class RevenueStatisticsDto
     public decimal TotalRevenue { get; set; }
     public List<MonthlyRevenueDto> MonthlyRevenue { get; set; } = new();
     public List<YearlyRevenueDto> YearlyRevenue { get; set; } = new();
+    public object DailyRevenue { get; internal set; }
 }
 
 public class MonthlyRevenueDto
