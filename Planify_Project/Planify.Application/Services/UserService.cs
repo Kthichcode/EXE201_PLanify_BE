@@ -12,10 +12,12 @@ namespace Planify.Application.Services;
 public class UserService : IUserService
 {
     private readonly IUserRepository _userRepo;
+    private readonly ISubscriptionRepository _subRepo;
 
-    public UserService(IUserRepository userRepo)
+    public UserService(IUserRepository userRepo, ISubscriptionRepository subRepo)
     {
         _userRepo = userRepo;
+        _subRepo = subRepo;
     }
 
     public async Task<ResponseDto<UserProfileResponseDto>> GetProfileAsync(string userId)
@@ -35,5 +37,38 @@ public class UserService : IUserService
         };
 
         return ResponseDto<UserProfileResponseDto>.Success(profile, "Lấy thông tin thành công.", 200);
+    }
+
+    public async Task<ResponseDto<IEnumerable<UserAdminResponseDto>>> GetAllUsersForAdminAsync()
+    {
+        // 1. Lấy tất cả user
+        var users = await _userRepo.GetAllUsersAsync();
+
+        // 2. Lấy tất cả active subscriptions của các user này
+        var userIds = users.Select(u => u.Id).ToList();
+        var activeSubscriptions = await _subRepo.GetActiveSubscriptionsForUsersAsync(userIds);
+        var subDict = activeSubscriptions.ToDictionary(s => s.UserId);
+
+        var result = new List<UserAdminResponseDto>();
+
+        // 3. Map dữ liệu
+        foreach (var u in users)
+        {
+            var roles = await _userRepo.GetRolesAsync(u.Id);
+            var sub = subDict.GetValueOrDefault(u.Id);
+
+            result.Add(new UserAdminResponseDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+                FullName = u.FullName,
+                Roles = roles,
+                PlanName = sub?.Plan?.Name,
+                PlanStatus = sub?.Status,
+                SubscriptionExpiresAt = sub?.ExpiresAt
+            });
+        }
+
+        return ResponseDto<IEnumerable<UserAdminResponseDto>>.Success(result, "Lấy danh sách người dùng thành công.", 200);
     }
 }

@@ -23,6 +23,12 @@ public class UserRepository : IUserRepository
         return user is null ? null : ToDto(user);
     }
 
+    public async Task<List<UserAccountDto>> GetAllUsersAsync()
+    {
+        var users = await Task.FromResult(_userManager.Users.ToList());
+        return users.Select(ToDto).ToList();
+    }
+
     public async Task<UserAccountDto?> FindByIdAsync(Guid id)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());

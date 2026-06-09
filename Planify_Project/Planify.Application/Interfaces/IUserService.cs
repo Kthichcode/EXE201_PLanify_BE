@@ -6,4 +6,5 @@ namespace Planify.Application.Interfaces;
 public interface IUserService
 {
     Task<ResponseDto<UserProfileResponseDto>> GetProfileAsync(string userId);
+    Task<ResponseDto<IEnumerable<UserAdminResponseDto>>> GetAllUsersForAdminAsync();
 }

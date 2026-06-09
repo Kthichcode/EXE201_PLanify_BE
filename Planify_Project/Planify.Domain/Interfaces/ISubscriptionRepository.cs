@@ -18,6 +18,7 @@ public interface ISubscriptionRepository
 
     // UserSubscription
     Task<UserSubscription?> GetActiveUserSubscriptionAsync(Guid userId, CancellationToken ct = default);
+    Task<List<UserSubscription>> GetActiveSubscriptionsForUsersAsync(List<Guid> userIds, CancellationToken ct = default);
     Task<List<UserSubscription>> GetActiveUserSubscriptionsAsync(Guid userId, CancellationToken ct = default);
     Task AddUserSubscriptionAsync(UserSubscription subscription, CancellationToken ct = default);
 
