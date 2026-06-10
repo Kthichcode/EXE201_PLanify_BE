@@ -18,5 +18,12 @@ public class UpdatePlanFrameworkDto
     [Required(ErrorMessage = "Structure không được để trống.")]
     public string Structure { get; set; } = "{}";
 
+    /// <summary>
+    /// Từ khóa phân cách bởi dấu phẩy để AI detect loại kế hoạch.
+    /// VD: "website,web,wdlc,lập trình web"
+    /// </summary>
+    [MaxLength(500, ErrorMessage = "Keywords tối đa 500 ký tự.")]
+    public string? Keywords { get; set; }
+
     public bool IsActive { get; set; }
 }

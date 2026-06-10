@@ -37,6 +37,40 @@ public class PlanFrameworkRepository : IPlanFrameworkRepository
         return await _context.PlanFrameworks.AnyAsync(f => f.Slug == slug, ct);
     }
 
+    public async Task<PlanFramework?> FindByKeywordAsync(string prompt, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(prompt)) return null;
+
+        // Load all active frameworks that have keywords defined
+        var activeFrameworks = await _context.PlanFrameworks
+            .Where(f => f.IsActive && f.Keywords != null && f.Keywords != "")
+            .ToListAsync(ct);
+
+        if (activeFrameworks.Count == 0) return null;
+
+        var promptLower = prompt.ToLowerInvariant();
+
+        // Find the framework with the most keyword matches
+        PlanFramework? bestMatch = null;
+        int bestScore = 0;
+
+        foreach (var framework in activeFrameworks)
+        {
+            var keywords = framework.Keywords!
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(k => k.ToLowerInvariant());
+
+            var score = keywords.Count(k => promptLower.Contains(k));
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMatch = framework;
+            }
+        }
+
+        return bestMatch;
+    }
+
     public async Task AddAsync(PlanFramework framework, CancellationToken ct = default)
         => await _context.PlanFrameworks.AddAsync(framework, ct);
 

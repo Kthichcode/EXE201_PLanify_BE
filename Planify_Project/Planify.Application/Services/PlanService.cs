@@ -13,15 +13,23 @@ public class PlanService : IPlanService
 {
     private readonly IPlanRepository _planRepository;
     private readonly IPlanTaskRepository _taskRepository;
+    private readonly ISubscriptionGuardService _guard;
 
-    public PlanService(IPlanRepository planRepository, IPlanTaskRepository taskRepository)
+    public PlanService(
+        IPlanRepository planRepository,
+        IPlanTaskRepository taskRepository,
+        ISubscriptionGuardService guard)
     {
         _planRepository = planRepository;
         _taskRepository = taskRepository;
+        _guard          = guard;
     }
 
     public async Task<PlanDto> CreateManualPlanAsync(CreatePlanDto dto, Guid userId)
     {
+        // Kiểm tra giới hạn số plan trước khi tạo
+        await _guard.EnforceMaxPlansAsync(userId);
+
         var plan = new Plan
         {
             UserId = userId,
@@ -148,6 +156,10 @@ public class PlanService : IPlanService
 
     public async Task<PlanDto> SaveAiPlanAsDraftAsync(SaveAiPlanRequestDto dto, Guid userId)
     {
+        // Kiểm tra giới hạn lượt tạo AI plan + số plan tối đa
+        await _guard.EnforceAndConsumeAiGenerateAsync(userId);
+        await _guard.EnforceMaxPlansAsync(userId);
+
         var planData = dto.PlanData;
 
         var planNode = planData["plan"]
@@ -180,6 +192,8 @@ public class PlanService : IPlanService
         var plan = new Plan
         {
             UserId         = userId,
+            TemplateId     = dto.TemplateId,
+            FrameworkId    = dto.FrameworkId,
             Title          = planTitle,
             Description    = planDesc,
             Goal           = GetStr(planNode, "Goal"),
@@ -322,6 +336,9 @@ public class PlanService : IPlanService
 
     public async Task<PlanDto> RefreshDraftWithRefinedPlanAsync(Guid planId, SaveAiPlanRequestDto dto, Guid userId)
     {
+        // Kiểm tra giới hạn lượt refine AI plan
+        await _guard.EnforceAndConsumeAiRefineAsync(userId);
+
         // ── 1. Load plan, kiểm tra quyền và trạng thái ──────────────────────
         var plan = await _planRepository.GetByIdWithTasksAsync(planId)
             ?? throw new KeyNotFoundException($"Không tìm thấy plan với id={planId}.");

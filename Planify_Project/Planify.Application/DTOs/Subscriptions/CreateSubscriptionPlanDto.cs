@@ -18,8 +18,12 @@ public class CreateSubscriptionPlanDto
     public string BillingCycle { get; set; } = "monthly"; // monthly | yearly | lifetime
 
     public int? AiRequestsLimit { get; set; }
+    public int? AiRefineLimit { get; set; }
     public int? StorageLimitMb { get; set; }
     public int? MaxPlans { get; set; }
     public string? Features { get; set; }
     public bool IsActive { get; set; } = true;
+
+    [Required(ErrorMessage = "Tier gói là bắt buộc.")]
+    public string Tier { get; set; } = "free"; // free | premium | vip
 }

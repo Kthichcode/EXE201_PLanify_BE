@@ -9,6 +9,7 @@ public class PlanFrameworkDto
     public string Slug { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Structure { get; set; } = string.Empty;
+    public string? Keywords { get; set; }
     public bool IsActive { get; set; }
     public Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }

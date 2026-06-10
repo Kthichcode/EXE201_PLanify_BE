@@ -58,10 +58,10 @@ public class PlanTemplateService : IPlanTemplateService
         var template = new PlanTemplate
         {
             FrameworkId = dto.FrameworkId,
-            CategoryId = dto.CategoryId,
             Title = dto.Title,
             Description = dto.Description,
-            TemplateContent = dto.TemplateContent,
+            // Join mảng dòng thành chuỗi văn bản hoàn chỉnh
+            TemplateContent = string.Join("\n", dto.TemplateContent),
             IsActive = dto.IsActive,
             CreatedBy = adminId,
             CreatedAt = DateTime.UtcNow,
@@ -88,10 +88,10 @@ public class PlanTemplateService : IPlanTemplateService
         }
 
         template.FrameworkId = dto.FrameworkId;
-        template.CategoryId = dto.CategoryId;
         template.Title = dto.Title;
         template.Description = dto.Description;
-        template.TemplateContent = dto.TemplateContent;
+        // Join mảng dòng thành chuỗi văn bản hoàn chỉnh
+        template.TemplateContent = string.Join("\n", dto.TemplateContent);
         template.IsActive = dto.IsActive;
         template.UpdatedAt = DateTime.UtcNow;
 
@@ -129,7 +129,6 @@ public class PlanTemplateService : IPlanTemplateService
         Id = t.Id,
         FrameworkId = t.FrameworkId,
         FrameworkName = t.Framework?.Name,
-        CategoryId = t.CategoryId,
         Title = t.Title,
         Description = t.Description,
         TemplateContent = t.TemplateContent,

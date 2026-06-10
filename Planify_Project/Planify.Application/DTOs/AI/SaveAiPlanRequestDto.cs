@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json.Nodes;
 using System.ComponentModel.DataAnnotations;
 
@@ -14,4 +15,10 @@ public class SaveAiPlanRequestDto
     /// </summary>
     [Required]
     public JsonObject PlanData { get; set; } = new();
+
+    /// <summary>ID template đã được dùng để generate (nếu có).</summary>
+    public Guid? TemplateId { get; set; }
+
+    /// <summary>ID framework đã được detect (nếu có).</summary>
+    public Guid? FrameworkId { get; set; }
 }

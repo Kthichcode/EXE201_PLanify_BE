@@ -282,7 +282,9 @@ public class SubscriptionService : ISubscriptionService
             Description     = dto.Description,
             Price           = dto.Price,
             BillingCycle    = dto.BillingCycle,
+            Tier            = dto.Tier.ToLowerInvariant(),
             AiRequestsLimit = dto.AiRequestsLimit,
+            AiRefineLimit   = dto.AiRefineLimit,
             StorageLimitMb  = dto.StorageLimitMb,
             MaxPlans        = dto.MaxPlans,
             Features        = dto.Features,
@@ -310,7 +312,9 @@ public class SubscriptionService : ISubscriptionService
         plan.Description     = dto.Description;
         plan.Price           = dto.Price;
         plan.BillingCycle    = dto.BillingCycle;
+        plan.Tier            = dto.Tier.ToLowerInvariant();
         plan.AiRequestsLimit = dto.AiRequestsLimit;
+        plan.AiRefineLimit   = dto.AiRefineLimit;
         plan.StorageLimitMb  = dto.StorageLimitMb;
         plan.MaxPlans        = dto.MaxPlans;
         plan.Features        = dto.Features;
@@ -378,29 +382,54 @@ public class SubscriptionService : ISubscriptionService
         Description     = plan.Description,
         Price           = plan.Price,
         BillingCycle    = plan.BillingCycle,
+        Tier            = plan.Tier,
         AiRequestsLimit = plan.AiRequestsLimit,
+        AiRefineLimit   = plan.AiRefineLimit,
         StorageLimitMb  = plan.StorageLimitMb,
         MaxPlans        = plan.MaxPlans,
         Features        = plan.Features,
         IsActive        = plan.IsActive
     };
 
-    private static UserSubscriptionDto MapToUserSubscriptionDto(UserSubscription sub) => new()
+    private static UserSubscriptionDto MapToUserSubscriptionDto(UserSubscription sub)
     {
-        Id                  = sub.Id,
-        UserId              = sub.UserId,
-        PlanId              = sub.PlanId,
-        PlanName            = sub.Plan?.Name ?? "N/A",
-        Status              = sub.Status,
-        StartedAt           = sub.StartedAt,
-        ExpiresAt           = sub.ExpiresAt,
-        AiRequestsUsed      = sub.AiRequestsUsed,
-        AiRequestsLimit     = sub.Plan?.AiRequestsLimit,
-        RemainingAiRequests = sub.Plan?.AiRequestsLimit.HasValue == true
-            ? Math.Max(0, sub.Plan.AiRequestsLimit.Value - sub.AiRequestsUsed)
-            : null,
-        StorageLimitMb      = sub.Plan?.StorageLimitMb,
-        MaxPlans            = sub.Plan?.MaxPlans,
-        CancelledAt         = sub.CancelledAt
-    };
+        var tier = sub.Plan?.Tier?.ToLowerInvariant() ?? "free";
+        var canLibrary = tier == "premium" || tier == "vip";
+
+        return new UserSubscriptionDto
+        {
+            Id              = sub.Id,
+            UserId          = sub.UserId,
+            PlanId          = sub.PlanId,
+            PlanName        = sub.Plan?.Name ?? "N/A",
+            Tier            = tier,
+            Status          = sub.Status,
+            StartedAt       = sub.StartedAt,
+            ExpiresAt       = sub.ExpiresAt,
+
+            // Generate usage
+            AiRequestsUsed      = sub.AiRequestsUsed,
+            AiRequestsLimit     = sub.Plan?.AiRequestsLimit,
+            RemainingAiRequests = sub.Plan?.AiRequestsLimit.HasValue == true
+                ? Math.Max(0, sub.Plan.AiRequestsLimit.Value - sub.AiRequestsUsed)
+                : null,
+
+            // Refine usage
+            AiRefineUsed      = sub.AiRefineUsed,
+            AiRefineLimit     = sub.Plan?.AiRefineLimit,
+            RemainingAiRefines = sub.Plan?.AiRefineLimit.HasValue == true
+                ? Math.Max(0, sub.Plan.AiRefineLimit.Value - sub.AiRefineUsed)
+                : null,
+
+            // Storage
+            StorageLimitMb = sub.Plan?.StorageLimitMb,
+            MaxPlans       = sub.Plan?.MaxPlans,
+
+            // Capability flags (hardcoded theo tier)
+            CanCopyFromLibrary  = canLibrary,
+            CanPublishToLibrary = canLibrary,
+
+            CancelledAt = sub.CancelledAt
+        };
+    }
 }
