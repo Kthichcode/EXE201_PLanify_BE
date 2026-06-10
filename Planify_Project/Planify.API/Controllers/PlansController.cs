@@ -217,5 +217,41 @@ public async Task<IActionResult> GetPlans()
         }
     }
 
+    [HttpPut("{planId}/tasks/{taskId}")]
+    public async Task<IActionResult> UpdatePlanTask(Guid planId, Guid taskId, [FromBody] UpdatePlanTaskDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
 
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized(new { error = "User ID not found or invalid." });
+
+        try
+        {
+            var task = await _planService.UpdatePlanTaskAsync(planId, taskId, dto, userId);
+            return Ok(task);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi cập nhật nhiệm vụ.", details = ex.Message });
+        }
+    }
+
+    [HttpDelete("{planId}/tasks/{taskId}")]
+    public async Task<IActionResult> DeletePlanTask(Guid planId, Guid taskId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized(new { error = "User ID not found or invalid." });
+
+        try
+        {
+            await _planService.DeletePlanTaskAsync(planId, taskId, userId);
+            return Ok(new { message = "Nhiệm vụ đã được xóa thành công." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi xảy ra khi xóa nhiệm vụ.", details = ex.Message });
+        }
+    }
 }
