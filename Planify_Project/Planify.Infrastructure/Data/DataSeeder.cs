@@ -119,5 +119,80 @@ public static class DataSeeder
             await dbContext.SaveChangesAsync();
             logger.LogInformation("Seeded default subscription plans.");
         }
+
+        // Seed plan frameworks and templates
+        if (!dbContext.PlanFrameworks.Any())
+        {
+            var adminUser = await userManager.FindByEmailAsync("admin123@gmail.com");
+            var adminUserId = adminUser?.Id ?? Guid.Empty;
+
+            var softwareFwId = Guid.NewGuid();
+            var educationFwId = Guid.NewGuid();
+
+            var frameworks = new List<PlanFramework>
+            {
+                new()
+                {
+                    Id = softwareFwId,
+                    Name = "Lập trình & Phát triển Phần mềm",
+                    Slug = "software-development",
+                    Description = "Khung lập trình và phát triển phần mềm, ứng dụng, website.",
+                    Structure = "{}",
+                    Keywords = "software,lập trình,phần mềm,web,app,coding,developer,it,code,git",
+                    IsActive = true,
+                    CreatedBy = adminUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Id = educationFwId,
+                    Name = "Luyện thi Chứng chỉ & Học tập",
+                    Slug = "education-certificates",
+                    Description = "Khung kế hoạch học tập, ôn thi các chứng chỉ ngoại ngữ, chuyên môn.",
+                    Structure = "{}",
+                    Keywords = "ielts,toeic,học tập,thi cử,chứng chỉ,study,english,tiếng anh,ôn thi",
+                    IsActive = true,
+                    CreatedBy = adminUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            };
+
+            dbContext.PlanFrameworks.AddRange(frameworks);
+            await dbContext.SaveChangesAsync();
+
+            var templates = new List<PlanTemplate>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    FrameworkId = softwareFwId,
+                    Title = "Quy trình phát triển Website 5 giai đoạn",
+                    Description = "Cấu trúc chuẩn để xây dựng và phát triển một dự án website từ thiết kế đến vận hành.",
+                    TemplateContent = "{\"tasks\":[{\"Title\":\"Giai đoạn 1: Thu thập yêu cầu và Lên kế hoạch\",\"subtasks\":[{\"Title\":\"Xác định mục tiêu và đối tượng mục tiêu của website\"},{\"Title\":\"Phác thảo Wireframe và Sơ đồ trang web (Sitemap)\"},{\"Title\":\"Lập bảng đặc tả kỹ thuật và chọn công nghệ sử dụng\"}]},{\"Title\":\"Giai đoạn 2: Thiết kế Giao diện (UI/UX Design)\",\"subtasks\":[{\"Title\":\"Thiết kế UI Mockup cho Trang chủ và các Trang con\"},{\"Title\":\"Tạo nguyên mẫu tương tác (Interactive Prototype)\"},{\"Title\":\"Nhận phản hồi từ khách hàng và phê duyệt thiết kế\"}]},{\"Title\":\"Giai đoạn 3: Phát triển Front-end & Back-end\",\"subtasks\":[{\"Title\":\"Lập trình giao diện Front-end responsive\"},{\"Title\":\"Thiết lập cơ sở dữ liệu và viết các API Back-end\"},{\"Title\":\"Tích hợp giao diện Front-end với hệ thống Back-end\"}]},{\"Title\":\"Giai đoạn 4: Kiểm thử và Sửa lỗi (QA/Testing)\",\"subtasks\":[{\"Title\":\"Kiểm thử chức năng và tính tương thích trên trình duyệt\"},{\"Title\":\"Kiểm tra hiệu năng và bảo mật hệ thống\"},{\"Title\":\"Sửa các lỗi phát hiện và tối ưu hóa tốc độ tải trang\"}]},{\"Title\":\"Giai đoạn 5: Triển khai và Bàn giao (Deployment)\",\"subtasks\":[{\"Title\":\"Cấu hình Server hosting/VPS và tên miền chính thức\"},{\"Title\":\"Deploy mã nguồn lên môi trường Production\"},{\"Title\":\"Hướng dẫn sử dụng và bàn giao tài liệu quản trị\"}]}]}",
+                    IsActive = true,
+                    CreatedBy = adminUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    FrameworkId = educationFwId,
+                    Title = "Lộ trình tự học IELTS 3 tháng bứt phá",
+                    Description = "Lộ trình học tập tập trung vào cả 4 kỹ năng Nghe, Nói, Đọc, Viết phù hợp cho việc tự ôn luyện.",
+                    TemplateContent = "{\"tasks\":[{\"Title\":\"Tháng 1: Củng cố nền tảng ngữ pháp & từ vựng và làm quen dạng đề\",\"subtasks\":[{\"Title\":\"Học từ vựng theo chủ đề phổ biến (Topic vocabulary)\"},{\"Title\":\"Ôn tập các chủ điểm ngữ pháp trọng điểm (Tenses, Passive Voice, Relative Clauses)\"},{\"Title\":\"Làm quen cấu trúc đề thi Listening và Reading\"}]},{\"Title\":\"Tháng 2: Luyện tập chuyên sâu từng kỹ năng & Phát triển chiến thuật làm bài\",\"subtasks\":[{\"Title\":\"Luyện kỹ năng Listening (Skimming & Scanning, Dictation)\"},{\"Title\":\"Luyện kỹ năng Reading (Matching Headings, True/False/Not Given)\"},{\"Title\":\"Luyện Writing Task 1 & Task 2 (Cách lên dàn ý, viết Introduction & Conclusion)\"},{\"Title\":\"Luyện Speaking Part 1, 2, 3 (Phát âm, độ trôi chảy và từ vựng nâng cao)\"}]},{\"Title\":\"Tháng 3: Luyện đề thi thử dưới áp lực thời gian & Khắc phục điểm yếu\",\"subtasks\":[{\"Title\":\"Làm đề thi thử trọn bộ (Full mock tests) 2 lần/tuần\"},{\"Title\":\"Phân tích chi tiết lỗi sai trong bài làm để rút kinh nghiệm\"},{\"Title\":\"Tổng duyệt chiến thuật quản lý thời gian cho phòng thi\"}]}]}",
+                    IsActive = true,
+                    CreatedBy = adminUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            };
+
+            dbContext.PlanTemplates.AddRange(templates);
+            await dbContext.SaveChangesAsync();
+            logger.LogInformation("Seeded default frameworks and templates.");
+        }
     }
 }

@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IUserService,         UserService>();
         services.AddScoped<IPlanService,         PlanService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
+        services.AddScoped<ISubscriptionGuardService, SubscriptionGuardService>();
         services.AddScoped<IPlanFrameworkService, PlanFrameworkService>();
         services.AddScoped<IPlanTemplateService,  PlanTemplateService>();
         services.AddScoped<ICommunityPlanService, CommunityPlanService>();
