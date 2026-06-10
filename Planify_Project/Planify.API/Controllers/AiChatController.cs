@@ -2,8 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planify.Application.DTOs.AI;
 using Planify.Application.Interfaces;
+using Planify.Domain.Entities;
+using Planify.Domain.Interfaces;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Planify.API.Controllers;
 
@@ -14,16 +18,22 @@ public class AiChatController : ControllerBase
 {
     private readonly IAiChatService _aiChatService;
     private readonly IPlanService _planService;
+    private readonly IPlanFrameworkRepository _frameworkRepo;
+    private readonly IPlanTemplateRepository _templateRepo;
     private readonly ILogger<AiChatController> _logger;
 
     public AiChatController(
         IAiChatService aiChatService,
         IPlanService planService,
+        IPlanFrameworkRepository frameworkRepo,
+        IPlanTemplateRepository templateRepo,
         ILogger<AiChatController> logger)
     {
-        _aiChatService = aiChatService;
-        _planService   = planService;
-        _logger        = logger;
+        _aiChatService  = aiChatService;
+        _planService    = planService;
+        _frameworkRepo  = frameworkRepo;
+        _templateRepo   = templateRepo;
+        _logger         = logger;
     }
 
     private Guid? GetUserId()
@@ -64,15 +74,9 @@ public class AiChatController : ControllerBase
 
     /// <summary>
     /// Tạo kế hoạch bằng AI → tự động lưu vào DB với Status = "draft".
-    /// FE dùng planId trả về để hiển thị preview và sau đó confirm/discard.
+    /// Hệ thống sẽ auto-detect loại kế hoạch từ prompt và inject template tương ứng vào AI.
+    /// FE có thể truyền TemplateId để chỉ định template cụ thể (bỏ qua auto-detect).
     /// </summary>
-    /// <remarks>
-    /// Request body:
-    /// <code>
-    /// { "prompt": "Tôi muốn học IELTS 6.5 trước tháng 8/2026, hiện tại band 5.0" }
-    /// </code>
-    /// Response trả về: { planId, plan (PlanDto đầy đủ), message, model, elapsedMs }
-    /// </remarks>
     [HttpPost("generate-plan")]
     public async Task<IActionResult> GeneratePlan(
         [FromBody] GeneratePlanRequestDto request,
@@ -87,11 +91,26 @@ public class AiChatController : ControllerBase
 
         try
         {
-            // 1. Gọi AI → nhận JSON kế hoạch
-            var aiResponse = await _aiChatService.GeneratePlanAsync(request, cancellationToken);
+            // 1. Resolve template từ DB
+            var (templateContext, resolvedTemplate, resolvedFramework) =
+                await ResolveTemplateAsync(request, cancellationToken);
 
-            // 2. Parse JSON → lưu DB với Status = "draft" (hết hạn sau 24h)
-            var saveDto = new SaveAiPlanRequestDto { PlanData = aiResponse.PlanData };
+            if (resolvedTemplate != null)
+                _logger.LogInformation(
+                    "Template resolved: templateId={TemplateId}, frameworkId={FrameworkId}",
+                    resolvedTemplate.Id, resolvedFramework?.Id);
+
+            // 2. Gọi AI → nhận JSON kế hoạch (với template context nếu có)
+            var aiResponse = await _aiChatService.GeneratePlanAsync(
+                request, templateContext, cancellationToken);
+
+            // 3. Parse JSON → lưu DB với Status = "draft" (hết hạn sau 24h)
+            var saveDto = new SaveAiPlanRequestDto
+            {
+                PlanData    = aiResponse.PlanData,
+                TemplateId  = resolvedTemplate?.Id,
+                FrameworkId = resolvedFramework?.Id
+            };
             var draftPlan = await _planService.SaveAiPlanAsDraftAsync(saveDto, userId.Value);
 
             _logger.LogInformation(
@@ -100,11 +119,15 @@ public class AiChatController : ControllerBase
 
             return Ok(new
             {
-                planId    = draftPlan.Id,
-                plan      = draftPlan,
-                message   = aiResponse.Message,
-                model     = aiResponse.Model,
-                elapsedMs = aiResponse.ElapsedMs
+                planId        = draftPlan.Id,
+                plan          = draftPlan,
+                message       = aiResponse.Message,
+                model         = aiResponse.Model,
+                elapsedMs     = aiResponse.ElapsedMs,
+                usedTemplateId   = resolvedTemplate?.Id,
+                usedTemplateName = resolvedTemplate?.Title,
+                usedFrameworkId  = resolvedFramework?.Id,
+                usedFrameworkName= resolvedFramework?.Name
             });
         }
         catch (OperationCanceledException)
@@ -127,16 +150,6 @@ public class AiChatController : ControllerBase
     /// Yêu cầu AI chỉnh sửa kế hoạch draft đã tạo theo instruction của người dùng.
     /// Draft cũ bị overwrite tại chỗ (giữ nguyên planId), DraftExpiresAt được gia hạn thêm 24h.
     /// </summary>
-    /// <remarks>
-    /// Request body:
-    /// <code>
-    /// {
-    ///   "planId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    ///   "instruction": "Thêm 2 task về marketing, rút ngắn deadline xuống cuối tháng 7"
-    /// }
-    /// </code>
-    /// Response trả về: { planId, plan (PlanDto đầy đủ), message, model, elapsedMs }
-    /// </remarks>
     [HttpPost("refine-plan")]
     public async Task<IActionResult> RefinePlan(
         [FromBody] RefinePlanRequestDto request,
@@ -219,4 +232,97 @@ public class AiChatController : ControllerBase
             return StatusCode(500, new { error = ex.Message, details = ex.InnerException?.Message });
         }
     }
+
+    // ── Private Helpers ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolve template từ DB:
+    /// 1. Nếu request có TemplateId → dùng thẳng.
+    /// 2. Nếu không → auto-detect framework qua keyword rồi lấy template active đầu tiên.
+    /// Trả về (templateContext, resolvedTemplate, resolvedFramework).
+    /// </summary>
+    private async Task<(string? templateContext, PlanTemplate? template, PlanFramework? framework)>
+        ResolveTemplateAsync(GeneratePlanRequestDto request, CancellationToken ct)
+    {
+        PlanTemplate? template = null;
+        PlanFramework? framework = null;
+
+        if (request.TemplateId.HasValue)
+        {
+            // FE chỉ định template cụ thể
+            template = await _templateRepo.GetByIdAsync(request.TemplateId.Value, ct);
+            if (template != null)
+                framework = template.Framework;
+        }
+        else
+        {
+            // Auto-detect framework từ keyword trong prompt
+            framework = await _frameworkRepo.FindByKeywordAsync(request.Prompt, ct);
+            if (framework != null)
+            {
+                // Lấy template active đầu tiên của framework này
+                var templates = await _templateRepo.GetByFrameworkIdAsync(framework.Id, ct);
+                template = templates.FirstOrDefault(t => t.IsActive);
+            }
+        }
+
+        if (template == null)
+            return (null, null, framework);
+
+        // Format template content thành chuỗi compact để inject vào AI (tiết kiệm token)
+        var templateContext = FormatTemplateForAi(template);
+        return (templateContext, template, framework);
+    }
+
+    /// <summary>
+    /// Format template content thành chuỗi ngắn gọn cho AI.
+    /// Chỉ trích xuất tên framework, tiêu đề template, và danh sách task titles từ JSON.
+    /// </summary>
+    private static string FormatTemplateForAi(PlanTemplate template)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Template: {template.Title}");
+        if (!string.IsNullOrWhiteSpace(template.Description))
+            sb.AppendLine($"Mô tả: {template.Description}");
+
+        try
+        {
+            var node = JsonNode.Parse(template.TemplateContent);
+            if (node is JsonObject obj)
+            {
+                // Trích xuất tasks nếu có
+                var tasks = obj["tasks"]?.AsArray();
+                if (tasks != null && tasks.Count > 0)
+                {
+                    sb.AppendLine("Cấu trúc tasks mẫu:");
+                    foreach (var task in tasks)
+                    {
+                        var taskTitle = task?["Title"]?.GetValue<string>() ?? task?["title"]?.GetValue<string>();
+                        if (string.IsNullOrWhiteSpace(taskTitle)) continue;
+
+                        sb.AppendLine($"- {taskTitle}");
+
+                        var subtasks = task?["subtasks"]?.AsArray();
+                        if (subtasks != null)
+                        {
+                            foreach (var sub in subtasks)
+                            {
+                                var subTitle = sub?["Title"]?.GetValue<string>() ?? sub?["title"]?.GetValue<string>();
+                                if (!string.IsNullOrWhiteSpace(subTitle))
+                                    sb.AppendLine($"  + {subTitle}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Nếu TemplateContent không phải JSON hợp lệ → dùng raw text
+            sb.AppendLine(template.TemplateContent);
+        }
+
+        return sb.ToString().Trim();
+    }
 }
+

@@ -29,6 +29,12 @@ public class PlanRepository : IPlanRepository
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<int> CountActiveByUserIdAsync(Guid userId, CancellationToken ct = default)
+        => await _context.Plans
+            .CountAsync(p => p.UserId == userId
+                          && p.Status != "draft"
+                          && p.Status != "discarded", ct);
+
     public async Task AddAsync(Plan plan, CancellationToken ct = default)
         => await _context.Plans.AddAsync(plan, ct);
 

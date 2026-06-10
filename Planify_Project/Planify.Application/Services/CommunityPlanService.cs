@@ -16,21 +16,26 @@ public class CommunityPlanService : ICommunityPlanService
     private readonly ICommunityPlanRepository _communityPlanRepository;
     private readonly IPlanRepository _planRepository;
     private readonly IPlanTaskRepository _taskRepository;
+    private readonly ISubscriptionGuardService _guard;
 
     public CommunityPlanService(
         ICommunityPlanRepository communityPlanRepository,
         IPlanRepository planRepository,
-        IPlanTaskRepository taskRepository)
+        IPlanTaskRepository taskRepository,
+        ISubscriptionGuardService guard)
     {
         _communityPlanRepository = communityPlanRepository;
         _planRepository = planRepository;
         _taskRepository = taskRepository;
+        _guard          = guard;
     }
 
     // ── Publish ─────────────────────────────────────────────────────────────
 
     public async Task<CommunityPlanDto> PublishPlanAsync(PublishPlanDto dto, Guid userId)
     {
+        // Kiểm tra quyền publish (Premium+ only)
+        await _guard.EnforcePublishPlanAsync(userId);
         // 1. Kiểm tra plan tồn tại và thuộc user
         var plan = await _planRepository.GetByIdWithTasksAsync(dto.PlanId)
             ?? throw new KeyNotFoundException("Không tìm thấy plan.");
@@ -124,6 +129,9 @@ public class CommunityPlanService : ICommunityPlanService
 
     public async Task<PlanDto> CopyPlanToUserAsync(Guid communityPlanId, Guid userId)
     {
+        // Kiểm tra quyền copy (Premium+ only) + giới hạn số plan
+        await _guard.EnforceCommunityPlanCopyAsync(userId);
+        await _guard.EnforceMaxPlansAsync(userId);
         var cp = await _communityPlanRepository.GetByIdWithDetailsAsync(communityPlanId)
             ?? throw new KeyNotFoundException("Không tìm thấy community plan.");
 

@@ -12,6 +12,13 @@ public interface IPlanRepository
     Task<Plan?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<Plan?> GetByIdWithTasksAsync(Guid id, CancellationToken ct = default);
     Task<List<Plan>> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Đếm số plan đang active của user (không tính draft/discarded).
+    /// Dùng để kiểm tra giới hạn MaxPlans theo gói subscription.
+    /// </summary>
+    Task<int> CountActiveByUserIdAsync(Guid userId, CancellationToken ct = default);
+
     Task AddAsync(Plan plan, CancellationToken ct = default);
     Task DeleteAsync(Plan plan, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);

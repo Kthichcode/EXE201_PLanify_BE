@@ -21,6 +21,9 @@ public interface ISubscriptionRepository
     Task<List<UserSubscription>> GetActiveUserSubscriptionsAsync(Guid userId, CancellationToken ct = default);
     Task AddUserSubscriptionAsync(UserSubscription subscription, CancellationToken ct = default);
 
+    /// <summary>Cập nhật UserSubscription (usage counters, LastRefillAt, v.v.).</summary>
+    Task UpdateUserSubscriptionAsync(UserSubscription subscription, CancellationToken ct = default);
+
     // PaymentTransaction
     Task AddPaymentTransactionAsync(PaymentTransaction transaction, CancellationToken ct = default);
     Task<PaymentTransaction?> GetPaymentTransactionByRefAsync(string paymentRef, CancellationToken ct = default);

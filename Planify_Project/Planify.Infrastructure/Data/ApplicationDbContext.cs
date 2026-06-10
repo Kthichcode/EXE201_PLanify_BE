@@ -134,6 +134,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Structure).IsRequired();
+            entity.Property(e => e.Keywords).HasMaxLength(500);
             
             entity.HasOne<ApplicationUser>()
                 .WithMany()

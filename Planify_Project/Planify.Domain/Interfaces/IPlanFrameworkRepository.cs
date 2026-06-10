@@ -12,6 +12,10 @@ public interface IPlanFrameworkRepository
     Task<List<PlanFramework>> GetAllAsync(CancellationToken ct = default);
     Task<List<PlanFramework>> GetActiveAsync(CancellationToken ct = default);
     Task<bool> SlugExistsAsync(string slug, Guid? excludeId = null, CancellationToken ct = default);
+    /// <summary>
+    /// Tìm framework active đầu tiên mà có keyword khớp với prompt của user (case-insensitive).
+    /// </summary>
+    Task<PlanFramework?> FindByKeywordAsync(string prompt, CancellationToken ct = default);
     Task AddAsync(PlanFramework framework, CancellationToken ct = default);
     Task DeleteAsync(PlanFramework framework, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);

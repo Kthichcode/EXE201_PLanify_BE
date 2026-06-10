@@ -47,6 +47,7 @@ public class PlanFrameworkService : IPlanFrameworkService
             Slug = dto.Slug.ToLower(),
             Description = dto.Description,
             Structure = dto.Structure,
+            Keywords = dto.Keywords,
             IsActive = dto.IsActive,
             CreatedBy = adminId,
             CreatedAt = DateTime.UtcNow,
@@ -72,6 +73,7 @@ public class PlanFrameworkService : IPlanFrameworkService
         framework.Slug = dto.Slug.ToLower();
         framework.Description = dto.Description;
         framework.Structure = dto.Structure;
+        framework.Keywords = dto.Keywords;
         framework.IsActive = dto.IsActive;
         framework.UpdatedAt = DateTime.UtcNow;
 
@@ -111,6 +113,7 @@ public class PlanFrameworkService : IPlanFrameworkService
         Slug = f.Slug,
         Description = f.Description,
         Structure = f.Structure,
+        Keywords = f.Keywords,
         IsActive = f.IsActive,
         CreatedBy = f.CreatedBy,
         CreatedAt = f.CreatedAt,

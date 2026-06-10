@@ -48,7 +48,7 @@ public class OpenAiChatService : IAiChatService
         QUY TẮC BẮT BUỘC:
         1. CHỈ trả về JSON thuần - không giải thích, không markdown, không backtick.
         2. Ngôn ngữ trong JSON: Tiếng Việt.
-        3. Tối thiểu 4 tasks, mỗi task tối thiểu 3 subtasks.
+        3. Tạo ĐỦ số tasks cần thiết để bảo đảm kế hoạch toàn diện. Mỗi task phải có đủ subtasks để mô tả chi tiết các công việc cụ thể (không giới hạn số lượng, ưu tiên đầy đủ và chi tiết).
         4. Description của Plan/Task/Subtask KHÔNG ĐỂ TRỐNG.
         5. Title của Subtask phải là động từ hành động cụ thể.
         6. Priority: "low"|"medium"|"high"|"critical". Status: "todo". Progress: 0.
@@ -71,7 +71,7 @@ public class OpenAiChatService : IAiChatService
         1. CHỈ trả về JSON thuần - không giải thích, không markdown, không backtick.
         2. Giữ nguyên schema JSON gốc, chỉ thay đổi nội dung theo yêu cầu.
         3. Ngôn ngữ trong JSON: Tiếng Việt.
-        4. Tối thiểu 4 tasks, mỗi task tối thiểu 3 subtasks (kể cả sau khi chỉnh sửa).
+        4. Tạo ĐỦ số tasks và subtasks cần thiết để kế hoạch toàn diện, sau khi chỉnh sửa (không giới hạn số lượng, ưu tiên đầy đủ và chi tiết).
         5. Description của Plan/Task/Subtask KHÔNG ĐỂ TRỐNG.
         6. Priority: "low"|"medium"|"high"|"critical". Status: "todo". Progress: 0.
         7. OrderIndex bắt đầu từ 1, tăng dần trong cùng cấp.
@@ -146,26 +146,32 @@ public class OpenAiChatService : IAiChatService
 
     public async Task<GeneratePlanResponseDto> GeneratePlanAsync(
         GeneratePlanRequestDto request,
+        string? templateContext = null,
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
 
         var today = DateTime.UtcNow.AddHours(7).ToString("yyyy-MM-dd");
 
+        // Build dynamic system prompt — inject template nếu có
+        var systemPrompt = BuildGeneratePlanPrompt(templateContext);
+
         // Chỉ 1 field — AI tự hiểu deadline/context từ văn bản tự do
         var userMessage = $"Ngày hôm nay: {today}\nYêu cầu: {request.Prompt}";
 
         var messages = new List<OpenAiMessage>
         {
-            new() { Role = "system", Content = GeneratePlanSystemPrompt },
+            new() { Role = "system", Content = systemPrompt },
             new() { Role = "user",   Content = userMessage }
         };
 
-        _logger.LogInformation("Generating plan via OpenAI: prompt={Prompt}", request.Prompt);
+        _logger.LogInformation(
+            "Generating plan via OpenAI: prompt={Prompt}, hasTemplate={HasTemplate}",
+            request.Prompt, templateContext != null);
 
         var reply = await CallOpenAiAsync(
             messages,
-            maxTokens: 3000,
+            maxTokens: 4000,
             cancellationToken);
 
         sw.Stop();
@@ -200,6 +206,22 @@ public class OpenAiChatService : IAiChatService
             Model     = reply.Model,
             ElapsedMs = sw.ElapsedMilliseconds
         };
+    }
+
+    /// <summary>
+    /// Build system prompt cho GeneratePlan. Nếu có template, inject thêm phần tham khảo.
+    /// </summary>
+    private static string BuildGeneratePlanPrompt(string? templateContext)
+    {
+        if (string.IsNullOrWhiteSpace(templateContext))
+            return GeneratePlanSystemPrompt;
+
+        return GeneratePlanSystemPrompt + $"""
+
+
+TEMPLATE THAM KHẢO (dựa theo cấu trúc và các tasks này, điều chỉnh cho phù hợp yêu cầu cụ thể của người dùng, không copy nguyên xi):
+{templateContext}
+""";
     }
 
     // ── REFINE PLAN ───────────────────────────────────────────────────────

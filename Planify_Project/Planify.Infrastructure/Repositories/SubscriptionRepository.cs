@@ -53,6 +53,13 @@ public class SubscriptionRepository : ISubscriptionRepository
     public async Task AddUserSubscriptionAsync(UserSubscription subscription, CancellationToken ct = default)
         => await _context.UserSubscriptions.AddAsync(subscription, ct);
 
+    public Task UpdateUserSubscriptionAsync(UserSubscription subscription, CancellationToken ct = default)
+    {
+        // EF Core theo dõi entity đã tracked → chỉ cần SaveChanges
+        _context.UserSubscriptions.Update(subscription);
+        return Task.CompletedTask;
+    }
+
     public async Task AddPaymentTransactionAsync(PaymentTransaction transaction, CancellationToken ct = default)
         => await _context.PaymentTransactions.AddAsync(transaction, ct);
 

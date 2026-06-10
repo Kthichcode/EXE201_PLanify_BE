@@ -67,45 +67,51 @@ public static class DataSeeder
             {
                 new()
                 {
-                    Name = "Free",
-                    Description = "Gói miễn phí cơ bản để làm quen với hệ thống",
-                    Price = 0,
-                    BillingCycle = "lifetime",
-                    AiRequestsLimit = 10,
-                    StorageLimitMb = 50,
-                    MaxPlans = 3,
-                    Features = "[\"AI Plan Generation (10 times/month)\", \"Basic Timeline Optimization\", \"3 Active Plans Limit\"]",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    Name            = "Free",
+                    Description     = "Gói miễn phí cơ bản để làm quen với hệ thống",
+                    Price           = 0,
+                    BillingCycle    = "lifetime",
+                    Tier            = "free",
+                    AiRequestsLimit = 3,
+                    AiRefineLimit   = 3,
+                    StorageLimitMb  = 50,
+                    MaxPlans        = 3,
+                    Features        = "[\"3 lượt tạo kế hoạch AI\", \"3 lượt chỉnh sửa AI\", \"Lưu tối đa 3 kế hoạch\", \"Xem thư viện cộng đồng\"]",
+                    IsActive        = true,
+                    CreatedAt       = DateTime.UtcNow,
+                    UpdatedAt       = DateTime.UtcNow
                 },
                 new()
                 {
-                    Name = "Premium",
-                    Description = "Gói Premium cho cá nhân cần tối ưu công việc",
-                    Price = 99000,
-                    BillingCycle = "monthly",
-                    AiRequestsLimit = 100,
-                    StorageLimitMb = 500,
-                    MaxPlans = 20,
-                    Features = "[\"AI Plan Generation (100 times/month)\", \"Advanced Timeline Optimization\", \"20 Active Plans Limit\", \"Community Plan Sharing\"]",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    Name            = "Premium",
+                    Description     = "Gói Premium cho cá nhân cần tối ưu công việc",
+                    Price           = 69000,
+                    BillingCycle    = "monthly",
+                    Tier            = "premium",
+                    AiRequestsLimit = 20,
+                    AiRefineLimit   = 20,
+                    StorageLimitMb  = 500,
+                    MaxPlans        = 10,
+                    Features        = "[\"20 lượt tạo kế hoạch AI\", \"20 lượt chỉnh sửa AI (+1/ngày khi hết)\", \"Lưu tối đa 10 kế hoạch\", \"Chia sẻ & lưu kế hoạch từ thư viện\"]",
+                    IsActive        = true,
+                    CreatedAt       = DateTime.UtcNow,
+                    UpdatedAt       = DateTime.UtcNow
                 },
                 new()
                 {
-                    Name = "Ultimate",
-                    Description = "Gói không giới hạn dành cho người dùng chuyên nghiệp",
-                    Price = 199000,
-                    BillingCycle = "monthly",
-                    AiRequestsLimit = null,
-                    StorageLimitMb = null,
-                    MaxPlans = null,
-                    Features = "[\"Unlimited AI Plan Generation\", \"Unlimited Active Plans\", \"Priority AI Chat Support\", \"Priority Support & Backup\"]",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    Name            = "VIP",
+                    Description     = "Gói không giới hạn dành cho người dùng chuyên nghiệp",
+                    Price           = 109000,
+                    BillingCycle    = "monthly",
+                    Tier            = "vip",
+                    AiRequestsLimit = null,   // không giới hạn
+                    AiRefineLimit   = null,   // không giới hạn
+                    StorageLimitMb  = null,
+                    MaxPlans        = null,   // không giới hạn
+                    Features        = "[\"Không giới hạn lượt tạo kế hoạch AI\", \"Không giới hạn lượt chỉnh sửa AI\", \"Lưu trữ không giới hạn\", \"Chia sẻ & lưu kế hoạch từ thư viện\", \"Đầy đủ tính năng Premium\"]",
+                    IsActive        = true,
+                    CreatedAt       = DateTime.UtcNow,
+                    UpdatedAt       = DateTime.UtcNow
                 }
             };
 

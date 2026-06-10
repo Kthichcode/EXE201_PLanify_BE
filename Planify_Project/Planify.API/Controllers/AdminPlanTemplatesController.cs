@@ -6,6 +6,7 @@ using Planify.Application.DTOs.PlanTemplates;
 using Planify.Application.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -48,6 +49,9 @@ public class AdminPlanTemplatesController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    /// <summary>
+    /// Tạo template bằng JSON (templateContent là mảng các dòng).
+    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ResponseDto<PlanTemplateDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -57,13 +61,51 @@ public class AdminPlanTemplatesController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var adminIdString = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        if (string.IsNullOrEmpty(adminIdString) || !Guid.TryParse(adminIdString, out var adminId))
-        {
+        var adminId = GetAdminId();
+        if (adminId is null)
             return Unauthorized(ResponseDto<PlanTemplateDto>.Fail("Không xác định được admin.", 401));
-        }
 
-        var response = await _service.CreateTemplateAsync(dto, adminId);
+        var response = await _service.CreateTemplateAsync(dto, adminId.Value);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Tạo template bằng plain text (copy thẳng từ Word/internet, không cần format JSON).
+    /// Dùng Content-Type: multipart/form-data — điền vào các field bên dưới.
+    /// </summary>
+    [HttpPost("from-text")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ResponseDto<PlanTemplateDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CreateFromPlainText(
+        [FromForm] Guid? frameworkId,
+        [FromForm] string title,
+        [FromForm] string? description,
+        [FromForm] string templateContent,
+        [FromForm] bool isActive = true)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return BadRequest(new { error = "Tiêu đề template không được để trống." });
+        if (string.IsNullOrWhiteSpace(templateContent))
+            return BadRequest(new { error = "Nội dung template không được để trống." });
+
+        var adminId = GetAdminId();
+        if (adminId is null)
+            return Unauthorized(ResponseDto<PlanTemplateDto>.Fail("Không xác định được admin.", 401));
+
+        // Chuyển plain text thành DTO — mỗi dòng là 1 phần tử
+        var dto = new CreatePlanTemplateDto
+        {
+            FrameworkId     = frameworkId,
+            Title           = title,
+            Description     = description,
+            TemplateContent = new List<string>(
+                templateContent.Split('\n', StringSplitOptions.None)),
+            IsActive = isActive
+        };
+
+        var response = await _service.CreateTemplateAsync(dto, adminId.Value);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -96,5 +138,11 @@ public class AdminPlanTemplatesController : ControllerBase
     {
         var response = await _service.DeleteTemplateAsync(id);
         return StatusCode(response.StatusCode, response);
+    }
+
+    private Guid? GetAdminId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return Guid.TryParse(claim, out var id) ? id : null;
     }
 }

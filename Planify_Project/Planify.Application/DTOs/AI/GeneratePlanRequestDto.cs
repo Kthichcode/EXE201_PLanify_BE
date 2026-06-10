@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace Planify.Application.DTOs.AI;
@@ -11,4 +12,10 @@ public class GeneratePlanRequestDto
     [Required(ErrorMessage = "Vui lòng nhập yêu cầu của bạn.")]
     [MinLength(10, ErrorMessage = "Yêu cầu quá ngắn, hãy mô tả rõ hơn.")]
     public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// (Optional) ID template cụ thể. Nếu FE muốn user tự chọn template thay vì để AI auto-detect.
+    /// Khi truyền vào, hệ thống sẽ dùng template này thay vì tìm theo keyword.
+    /// </summary>
+    public Guid? TemplateId { get; set; }
 }
