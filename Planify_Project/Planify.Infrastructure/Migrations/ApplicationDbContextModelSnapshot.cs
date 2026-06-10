@@ -405,6 +405,10 @@ namespace Planify.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Keywords")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -498,9 +502,6 @@ namespace Planify.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("CategoryId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -572,6 +573,9 @@ namespace Planify.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("AiRefineLimit")
+                        .HasColumnType("int");
+
                     b.Property<int?>("AiRequestsLimit")
                         .HasColumnType("int");
 
@@ -607,6 +611,10 @@ namespace Planify.Infrastructure.Migrations
                     b.Property<int?>("StorageLimitMb")
                         .HasColumnType("int");
 
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -621,6 +629,9 @@ namespace Planify.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AiRefineUsed")
+                        .HasColumnType("int");
+
                     b.Property<int>("AiRequestsUsed")
                         .HasColumnType("int");
 
@@ -631,6 +642,9 @@ namespace Planify.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastRefillAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid>("PlanId")

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Planify.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class kj : Migration
+    public partial class hehe : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -51,7 +51,9 @@ namespace Planify.Infrastructure.Migrations
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Price = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     BillingCycle = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Tier = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     AiRequestsLimit = table.Column<int>(type: "int", nullable: true),
+                    AiRefineLimit = table.Column<int>(type: "int", nullable: true),
                     StorageLimitMb = table.Column<int>(type: "int", nullable: true),
                     MaxPlans = table.Column<int>(type: "int", nullable: true),
                     Features = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -120,6 +122,7 @@ namespace Planify.Infrastructure.Migrations
                     Slug = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Structure = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Keywords = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -212,6 +215,8 @@ namespace Planify.Infrastructure.Migrations
                     StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     AiRequestsUsed = table.Column<int>(type: "int", nullable: false),
+                    AiRefineUsed = table.Column<int>(type: "int", nullable: false),
+                    LastRefillAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CancelledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
@@ -259,7 +264,6 @@ namespace Planify.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FrameworkId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     TemplateContent = table.Column<string>(type: "nvarchar(max)", nullable: false),
