@@ -29,9 +29,10 @@ public interface IPlanService
     /// </summary>
     Task DiscardDraftPlanAsync(Guid planId, Guid userId);
 
-
-
     Task DeletePlanAsync(Guid planId, Guid userId);
 
     Task<PlanDto> RefreshDraftWithRefinedPlanAsync(Guid planId, SaveAiPlanRequestDto dto, Guid userId);
+
+    Task<PlanTaskDto> UpdatePlanTaskAsync(Guid planId, Guid taskId, UpdatePlanTaskDto dto, Guid userId);
+    Task DeletePlanTaskAsync(Guid planId, Guid taskId, Guid userId);
 }

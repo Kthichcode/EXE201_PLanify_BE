@@ -617,4 +617,63 @@ public class PlanService : IPlanService
         await _planRepository.DeleteAsync(plan);
         await _planRepository.SaveChangesAsync();
     }
+
+    public async Task<PlanTaskDto> UpdatePlanTaskAsync(Guid planId, Guid taskId, UpdatePlanTaskDto dto, Guid userId)
+    {
+        var plan = await _planRepository.GetByIdAsync(planId);
+        if (plan == null || plan.UserId != userId) throw new Exception("Plan not found or access denied.");
+
+        var task = await _taskRepository.GetByIdAsync(taskId);
+        if (task == null || task.PlanId != planId) throw new Exception("Task not found.");
+
+        task.Title = dto.Title;
+        task.Description = dto.Description;
+        task.Priority = dto.Priority ?? task.Priority;
+        task.StartDate = dto.StartDate;
+        task.DueDate = dto.DueDate;
+        task.UpdatedAt = DateTime.UtcNow;
+
+        await _taskRepository.SaveChangesAsync();
+        await RecalculatePlanProgressAsync(planId);
+
+        return new PlanTaskDto
+        {
+            Id = task.Id,
+            PlanId = task.PlanId,
+            ParentTaskId = task.ParentTaskId,
+            Title = task.Title,
+            Description = task.Description,
+            Status = task.Status,
+            Priority = task.Priority,
+            StartDate = task.StartDate,
+            DueDate = task.DueDate,
+            CompletedAt = task.CompletedAt,
+            Progress = task.Progress,
+            OrderIndex = task.OrderIndex,
+            CreatedAt = task.CreatedAt,
+            UpdatedAt = task.UpdatedAt
+        };
+    }
+
+    public async Task DeletePlanTaskAsync(Guid planId, Guid taskId, Guid userId)
+    {
+        var plan = await _planRepository.GetByIdAsync(planId);
+        if (plan == null || plan.UserId != userId) throw new Exception("Plan not found or access denied.");
+
+        var task = await _taskRepository.GetByIdAsync(taskId);
+        if (task == null || task.PlanId != planId) throw new Exception("Task not found.");
+
+        // Nếu là task cha, xóa cả các task con
+        var allTasks = await _taskRepository.GetByPlanIdAsync(planId);
+        var subtasks = allTasks.Where(t => t.ParentTaskId == taskId).ToList();
+        if (subtasks.Any())
+        {
+            await _taskRepository.DeleteRangeAsync(subtasks);
+        }
+
+        await _taskRepository.DeleteAsync(task);
+        await _taskRepository.SaveChangesAsync();
+
+        await RecalculatePlanProgressAsync(planId);
+    }
 }
