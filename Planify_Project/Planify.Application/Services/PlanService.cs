@@ -69,6 +69,22 @@ public class PlanService : IPlanService
             {
                 throw new Exception("Parent task not found in this plan.");
             }
+
+            // Subtask: DueDate không được vượt quá DueDate của task cha
+            if (dto.DueDate.HasValue && parent.DueDate.HasValue && dto.DueDate.Value > parent.DueDate.Value)
+            {
+                throw new InvalidOperationException(
+                    $"Ngày kết thúc của subtask ({dto.DueDate.Value:dd/MM/yyyy}) không được vượt quá ngày kết thúc của task cha '{parent.Title}' ({parent.DueDate.Value:dd/MM/yyyy}).");
+            }
+        }
+        else
+        {
+            // Task gốc: DueDate không được vượt quá Deadline của plan
+            if (dto.DueDate.HasValue && plan.Deadline.HasValue && dto.DueDate.Value > plan.Deadline.Value)
+            {
+                throw new InvalidOperationException(
+                    $"Ngày kết thúc của task ({dto.DueDate.Value:dd/MM/yyyy}) không được vượt quá deadline của kế hoạch ({plan.Deadline.Value:dd/MM/yyyy}).");
+            }
         }
 
         var planTask = new PlanTask
@@ -228,6 +244,12 @@ public class PlanService : IPlanService
             var taskDesc = GetStr(tNode, "Description")
                 ?? throw new InvalidOperationException($"Task '{taskTitle}' không có Description. Vui lòng thử lại.");
 
+            var taskDueDate = GetDate(tNode, "DueDate");
+
+            // Task gốc: DueDate không được vượt quá Deadline của plan
+            if (taskDueDate.HasValue && plan.Deadline.HasValue && taskDueDate.Value > plan.Deadline.Value)
+                taskDueDate = plan.Deadline; // Clamp về deadline plan
+
             var task = new PlanTask
             {
                 Title       = taskTitle,
@@ -235,7 +257,7 @@ public class PlanService : IPlanService
                 Priority    = GetStr(tNode, "Priority") ?? "medium",
                 Status      = "todo",
                 StartDate   = GetDate(tNode, "StartDate"),
-                DueDate     = GetDate(tNode, "DueDate"),
+                DueDate     = taskDueDate,
                 Progress    = 0,
                 OrderIndex  = tNode["OrderIndex"]?.GetValue<int>() ?? taskOrder,
                 CreatedAt   = DateTime.UtcNow,
@@ -259,6 +281,12 @@ public class PlanService : IPlanService
                     var subDesc = GetStr(stNode, "Description")
                         ?? throw new InvalidOperationException($"Subtask '{subTitle}' không có Description.");
 
+                    var subDueDate = GetDate(stNode, "DueDate");
+
+                    // Subtask: DueDate không được vượt quá DueDate của task cha
+                    if (subDueDate.HasValue && task.DueDate.HasValue && subDueDate.Value > task.DueDate.Value)
+                        subDueDate = task.DueDate; // Clamp về DueDate task cha
+
                     task.SubTasks.Add(new PlanTask
                     {
                         Title       = subTitle,
@@ -266,7 +294,7 @@ public class PlanService : IPlanService
                         Priority    = GetStr(stNode, "Priority") ?? "medium",
                         Status      = "todo",
                         StartDate   = GetDate(stNode, "StartDate"),
-                        DueDate     = GetDate(stNode, "DueDate"),
+                        DueDate     = subDueDate,
                         Progress    = 0,
                         OrderIndex  = stNode["OrderIndex"]?.GetValue<int>() ?? subOrder,
                         CreatedAt   = DateTime.UtcNow,
@@ -422,6 +450,12 @@ public class PlanService : IPlanService
                 var taskDesc = GetStr(tNode, "Description")
                     ?? throw new InvalidOperationException($"Task '{taskTitle}' không có Description. Vui lòng thử lại.");
 
+                var taskDueDate = GetDate(tNode, "DueDate");
+
+                // Task gốc: DueDate không được vượt quá Deadline của plan
+                if (taskDueDate.HasValue && plan.Deadline.HasValue && taskDueDate.Value > plan.Deadline.Value)
+                    taskDueDate = plan.Deadline; // Clamp về deadline plan
+
                 var task = new PlanTask
                 {
                     PlanId      = plan.Id,
@@ -430,7 +464,7 @@ public class PlanService : IPlanService
                     Priority    = GetStr(tNode, "Priority") ?? "medium",
                     Status      = "todo",
                     StartDate   = GetDate(tNode, "StartDate"),
-                    DueDate     = GetDate(tNode, "DueDate"),
+                    DueDate     = taskDueDate,
                     Progress    = 0,
                     OrderIndex  = tNode["OrderIndex"]?.GetValue<int>() ?? taskOrder,
                     CreatedAt   = DateTime.UtcNow,
@@ -456,6 +490,12 @@ public class PlanService : IPlanService
                         var subDesc = GetStr(stNode, "Description")
                             ?? throw new InvalidOperationException($"Subtask '{subTitle}' không có Description.");
 
+                        var subDueDate = GetDate(stNode, "DueDate");
+
+                        // Subtask: DueDate không được vượt quá DueDate của task cha
+                        if (subDueDate.HasValue && task.DueDate.HasValue && subDueDate.Value > task.DueDate.Value)
+                            subDueDate = task.DueDate; // Clamp về DueDate task cha
+
                         var subtask = new PlanTask
                         {
                             PlanId       = plan.Id,
@@ -465,7 +505,7 @@ public class PlanService : IPlanService
                             Priority     = GetStr(stNode, "Priority") ?? "medium",
                             Status       = "todo",
                             StartDate    = GetDate(stNode, "StartDate"),
-                            DueDate      = GetDate(stNode, "DueDate"),
+                            DueDate      = subDueDate,
                             Progress     = 0,
                             OrderIndex   = stNode["OrderIndex"]?.GetValue<int>() ?? subOrder,
                             CreatedAt    = DateTime.UtcNow,
