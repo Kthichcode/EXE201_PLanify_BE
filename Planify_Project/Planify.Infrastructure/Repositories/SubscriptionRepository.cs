@@ -43,7 +43,9 @@ public class SubscriptionRepository : ISubscriptionRepository
     public async Task<UserSubscription?> GetActiveUserSubscriptionAsync(Guid userId, CancellationToken ct = default)
         => await _context.UserSubscriptions
             .Include(s => s.Plan)
-            .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == "active", ct);
+            .Where(s => s.UserId == userId && s.Status == "active")
+            .OrderByDescending(s => s.StartedAt)
+            .FirstOrDefaultAsync(ct);
 
     public async Task<List<UserSubscription>> GetActiveUserSubscriptionsAsync(Guid userId, CancellationToken ct = default)
         => await _context.UserSubscriptions
