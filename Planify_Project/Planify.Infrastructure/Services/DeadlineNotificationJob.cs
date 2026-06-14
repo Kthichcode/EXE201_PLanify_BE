@@ -37,8 +37,8 @@ public class DeadlineNotificationJob : BackgroundService
                 _logger.LogError(ex, "Error occurred executing DeadlineNotificationJob.");
             }
 
-            // Run every 1 hour
-            await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+            // Run every 5 minutes
+            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
         }
     }
 
