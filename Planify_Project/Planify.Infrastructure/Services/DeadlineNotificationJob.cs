@@ -42,6 +42,15 @@ public class DeadlineNotificationJob : BackgroundService
         }
     }
 
+    private static readonly TimeZoneInfo VietnamTz =
+        TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows() ? "SE Asia Standard Time" : "Asia/Ho_Chi_Minh");
+
+    private static string ToVietnamTime(DateTime? utcTime) =>
+        utcTime.HasValue
+            ? TimeZoneInfo.ConvertTimeFromUtc(utcTime.Value, VietnamTz).ToString("dd/MM/yyyy HH:mm")
+            : "N/A";
+
     private async Task ProcessDeadlinesAsync()
     {
         using var scope = _serviceProvider.CreateScope();
@@ -68,7 +77,7 @@ public class DeadlineNotificationJob : BackgroundService
                 string subject = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
-                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào lúc <strong>{plan.Deadline?.ToLocalTime():dd/MM/yyyy HH:mm}</strong>.</p>
+                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(plan.Deadline)}</strong>.</p>
                     <p>Hãy nhanh chóng hoàn thành nhé!</p>
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
@@ -99,7 +108,7 @@ public class DeadlineNotificationJob : BackgroundService
                 string subject = $"Nhắc nhở: Công việc '{task.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
-                    <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{task.DueDate?.ToLocalTime():dd/MM/yyyy HH:mm}</strong>.</p>
+                    <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(task.DueDate)}</strong>.</p>
                     <p>Đừng quên hoàn thành nhé!</p>
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
