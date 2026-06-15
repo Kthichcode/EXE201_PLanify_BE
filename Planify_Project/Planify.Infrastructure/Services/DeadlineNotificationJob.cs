@@ -57,15 +57,21 @@ public class DeadlineNotificationJob : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
-        var now = DateTime.UtcNow;
-        var in24Hours = now.AddHours(24);
+        var nowUtc = DateTime.UtcNow;
+        // Tính ngày "ngày mai" theo giờ Việt Nam
+        var todayVn   = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, VietnamTz).Date;
+        var tomorrowVn = todayVn.AddDays(1);
+
+        // Chuyển khoảng [bắt đầu ngày mai VN, kết thúc ngày mai VN] sang UTC để query DB
+        var tomorrowStartUtc = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn.ToDateTime(TimeOnly.MinValue), VietnamTz);
+        var tomorrowEndUtc   = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn.ToDateTime(TimeOnly.MaxValue), VietnamTz);
 
         // 1. Process Plans
         var upcomingPlans = await context.Plans
-            .Where(p => p.Status != "done" 
-                     && p.Deadline != null 
-                     && p.Deadline > now 
-                     && p.Deadline <= in24Hours 
+            .Where(p => p.Status != "done"
+                     && p.Deadline != null
+                     && p.Deadline >= tomorrowStartUtc
+                     && p.Deadline <= tomorrowEndUtc
                      && !p.IsReminderSent)
             .ToListAsync();
 
@@ -74,16 +80,16 @@ public class DeadlineNotificationJob : BackgroundService
             var user = await context.Users.FindAsync(plan.UserId);
             if (user != null && !string.IsNullOrEmpty(user.Email))
             {
-                string subject = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn!";
+                string subject = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn vào ngày mai!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
-                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(plan.Deadline)}</strong>.</p>
+                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày <strong>{ToVietnamTime(plan.Deadline)}</strong> (ngày mai).</p>
                     <p>Hãy nhanh chóng hoàn thành nhé!</p>
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
                 ";
                 await emailService.SendEmailAsync(user.Email, subject, body);
-                
+
                 plan.IsReminderSent = true;
             }
         }
@@ -91,10 +97,10 @@ public class DeadlineNotificationJob : BackgroundService
         // 2. Process PlanTasks
         var upcomingTasks = await context.PlanTasks
             .Include(t => t.Plan)
-            .Where(t => t.Status != "done" 
-                     && t.DueDate != null 
-                     && t.DueDate > now 
-                     && t.DueDate <= in24Hours 
+            .Where(t => t.Status != "done"
+                     && t.DueDate != null
+                     && t.DueDate >= tomorrowStartUtc
+                     && t.DueDate <= tomorrowEndUtc
                      && !t.IsReminderSent)
             .ToListAsync();
 
