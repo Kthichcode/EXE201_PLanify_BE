@@ -57,6 +57,7 @@ public class OpenAiChatService : IAiChatService
         9. DueDate subtask nằm trong [StartDate, DueDate] của task cha.
         10. DueDate task nằm trong [StartDate kế hoạch, Deadline].
         11. totalTasks và totalSubtasks phải đếm chính xác.
+        12. NẾU có TEMPLATE THAM KHẢO: PHẢI giữ NGUYÊN XI title của MỌI task và subtask trong template - KHÔNG được bỏ bớt, gộp, hay đổi tên. Chỉ được thêm subtask nếu template quá ít hoặc quá mơ hồ. Số lượng task phải BẰNG số task trong template.
 
         SCHEMA JSON (không thêm bớt field):
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
@@ -219,7 +220,13 @@ public class OpenAiChatService : IAiChatService
         return GeneratePlanSystemPrompt + $"""
 
 
-TEMPLATE THAM KHẢO (dựa theo cấu trúc và các tasks này, điều chỉnh cho phù hợp yêu cầu cụ thể của người dùng, không copy nguyên xi):
+TEMPLATE BẮT BUỘC TUÂN THEO:
+- PHẢI tạo đúng số lượng task bằng với số bước/task trong template dưới đây.
+- PHẢI sao chép NGUYÊN XI title của từng task và subtask từ template (không được bỏ bớt, gộp, đổi tên, hay tự sáng tạo tên khác).
+- CHỈ được tự thêm subtask nếu subtask trong template quá ít (dưới 2) hoặc quá mơ hồ.
+- Chỉnh sửa StartDate, DueDate, Description, Priority cho phù hợp với yêu cầu người dùng — KHÔNG thay đổi Title.
+
+NỘI DUNG TEMPLATE:
 {templateContext}
 """;
     }
