@@ -12,8 +12,8 @@ using Planify.Infrastructure.Data;
 namespace Planify.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260610031744_hehe")]
-    partial class hehe
+    [Migration("20260615003009_final")]
+    partial class final
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
