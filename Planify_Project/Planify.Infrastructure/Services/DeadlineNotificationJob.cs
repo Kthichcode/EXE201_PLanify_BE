@@ -62,9 +62,10 @@ public class DeadlineNotificationJob : BackgroundService
         var todayVn   = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, VietnamTz).Date;
         var tomorrowVn = todayVn.AddDays(1);
 
-        // Chuyển khoảng [bắt đầu ngày mai VN, kết thúc ngày mai VN] sang UTC để query DB
-        var tomorrowStartUtc = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn.ToDateTime(TimeOnly.MinValue), VietnamTz);
-        var tomorrowEndUtc   = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn.ToDateTime(TimeOnly.MaxValue), VietnamTz);
+        // Chuyển khoảng [bắt đầu ngày mai VN 00:00:00, kết thúc ngày mai VN 23:59:59] sang UTC để query DB
+        // tomorrowVn là DateTime với time = 00:00:00 (từ .Date)
+        var tomorrowStartUtc = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn, VietnamTz);
+        var tomorrowEndUtc   = TimeZoneInfo.ConvertTimeToUtc(tomorrowVn.AddDays(1).AddTicks(-1), VietnamTz);
 
         // 1. Process Plans
         var upcomingPlans = await context.Plans
