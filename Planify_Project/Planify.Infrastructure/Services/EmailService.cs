@@ -19,8 +19,11 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
+        var senderAddress = new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail);
+
         var email = new MimeMessage();
-        email.Sender = MailboxAddress.Parse(_emailSettings.SenderEmail);
+        email.From.Add(senderAddress);   // hiển thị tên "Planify System" trong hộp thư đến
+        email.Sender = senderAddress;    // xác nhận người gửi thực tế
         email.To.Add(MailboxAddress.Parse(toEmail));
         email.Subject = subject;
 
@@ -36,7 +39,6 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            // Log error here if needed
             Console.WriteLine($"Error sending email to {toEmail}: {ex.Message}");
         }
         finally
@@ -45,3 +47,4 @@ public class EmailService : IEmailService
         }
     }
 }
+
