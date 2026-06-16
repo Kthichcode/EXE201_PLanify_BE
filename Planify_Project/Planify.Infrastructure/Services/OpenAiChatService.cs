@@ -59,6 +59,7 @@ public class OpenAiChatService : IAiChatService
         11. totalTasks và totalSubtasks phải đếm chính xác.
         12. NẾU có TEMPLATE THAM KHẢO: PHẢI giữ NGUYÊN XI title của MỌI task và subtask trong template - KHÔNG được bỏ bớt, gộp, hay đổi tên. Số lượng task phải BẰNG số task trong template.
         13. Nếu subtask trong template quá ít (dưới 3) hoặc nội dung quá mơ hồ → BẮT BUỘC bổ sung thêm nhiều subtask liên quan nhất có thể, TỐI THIỂU 3 subtask cho mỗi task (không giới hạn tối đa, càng chi tiết càng tốt).
+        14. TOKEN BUDGET - CỰC KỲ QUAN TRỌNG: Toàn bộ JSON output PHẢI hoàn chỉnh và đóng ngoặc đầy đủ trong giới hạn 4000 tokens. Nếu kế hoạch lớn, hãy RÚT NGẮN Description (tối đa 1-2 câu mỗi field) thay vì để JSON bị cắt giữa chừng. TUYỆT ĐỐI không được để JSON ở trạng thái chưa đóng ngoặc.
 
         SCHEMA JSON (không thêm bớt field):
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
@@ -81,6 +82,7 @@ public class OpenAiChatService : IAiChatService
         9. DueDate task nằm trong [StartDate kế hoạch, Deadline].
         10. totalTasks và totalSubtasks phải đếm lại chính xác sau khi chỉnh sửa.
         11. metadata.message phải mô tả ngắn gọn những gì đã được chỉnh sửa.
+        12. TOKEN BUDGET - CỰC KỲ QUAN TRỌNG: Toàn bộ JSON output PHẢI hoàn chỉnh và đóng ngoặc đầy đủ trong giới hạn 6000 tokens. Nếu kế hoạch lớn, hãy RÚT NGẮN Description (tối đa 1-2 câu mỗi field) thay vì để JSON bị cắt giữa chừng. TUYỆT ĐỐI không được để JSON ở trạng thái chưa đóng ngoặc.
 
         SCHEMA JSON (không thêm bớt field):
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
