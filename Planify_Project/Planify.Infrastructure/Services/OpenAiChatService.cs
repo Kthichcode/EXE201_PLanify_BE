@@ -262,7 +262,7 @@ NỘI DUNG TEMPLATE:
 
         var reply = await CallOpenAiAsync(
             messages,
-            maxTokens: 3500,
+            maxTokens: 6000,
             cancellationToken);
 
         sw.Stop();
