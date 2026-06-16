@@ -34,24 +34,38 @@ public class EmailService : IEmailService
         email.Body = builder.ToMessageBody();
 
         using var smtp = new SmtpClient();
+
+        // Timeout 15 giây — nếu port bị block thì fail nhanh thay vì treo vô thời hạn
+        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+
         try
         {
-            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
+            // SecureSocketOptions.Auto: tự động chọn SSL/TLS phù hợp với port
+            // port 465 → SslOnConnect (SSL trực tiếp, không bị block trên cloud)
+            // port 587 → StartTls (có thể bị block trên Render/AWS)
+            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort,
+                SecureSocketOptions.Auto, cts.Token);
             _logger.LogInformation("SMTP connected. Authenticating as {SenderEmail}...", _emailSettings.SenderEmail);
 
-            await smtp.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password);
+            await smtp.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password, cts.Token);
             _logger.LogInformation("SMTP authenticated. Sending email...");
 
-            await smtp.SendAsync(email);
+            await smtp.SendAsync(email, cancellationToken: cts.Token);
             _logger.LogInformation("Email sent successfully to {ToEmail}", toEmail);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogError(
+                "SMTP connection TIMED OUT after 15s connecting to {SmtpServer}:{SmtpPort}. " +
+                "Port may be blocked by hosting firewall. Try port 465 in Render Environment Variables.",
+                _emailSettings.SmtpServer, _emailSettings.SmtpPort);
+            throw;
         }
         catch (MailKit.Security.AuthenticationException authEx)
         {
-            // Lỗi xác thực Gmail: sai password hoặc Google block IP của cloud server
             _logger.LogError(authEx,
                 "SMTP AUTHENTICATION FAILED for {SenderEmail}. " +
-                "If deployed on cloud (Render/AWS), Google may be blocking the server IP. " +
-                "Check: 1) App Password correct? 2) 'Less secure app' or 2FA App Password?",
+                "Check: 1) App Password correct? 2) Gmail 2FA enabled?",
                 _emailSettings.SenderEmail);
             throw;
         }
@@ -65,8 +79,7 @@ public class EmailService : IEmailService
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Unexpected error sending email to {ToEmail}. " +
-                "Server={SmtpServer}, Port={SmtpPort}",
+                "Unexpected error sending email to {ToEmail}. Server={SmtpServer}, Port={SmtpPort}",
                 toEmail, _emailSettings.SmtpServer, _emailSettings.SmtpPort);
             throw;
         }
