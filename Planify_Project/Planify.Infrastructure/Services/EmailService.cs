@@ -1,91 +1,90 @@
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MimeKit;
 using Planify.Application.Interfaces;
 using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Planify.Infrastructure.Services;
 
+/// <summary>
+/// Gửi email qua Resend HTTP API (https://resend.com).
+/// Dùng port 443 HTTPS — không bị block bởi Render/cloud hosting.
+/// Thay thế MailKit SMTP vì Render block tất cả outbound SMTP port (587, 465).
+/// Free tier: 3000 emails/tháng.
+/// </summary>
 public class EmailService : IEmailService
 {
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<EmailService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public EmailService(IOptions<EmailSettings> emailSettings, ILogger<EmailService> logger)
+    public EmailService(
+        IOptions<EmailSettings> emailSettings,
+        ILogger<EmailService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _emailSettings = emailSettings.Value;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
-        _logger.LogInformation("Attempting to send email to {ToEmail} via {SmtpServer}:{SmtpPort}",
-            toEmail, _emailSettings.SmtpServer, _emailSettings.SmtpPort);
+        _logger.LogInformation("Sending email to {ToEmail} via Resend HTTP API", toEmail);
 
-        var email = new MimeMessage();
-        email.Sender = MailboxAddress.Parse(_emailSettings.SenderEmail);
-        email.To.Add(MailboxAddress.Parse(toEmail));
-        email.Subject = subject;
+        var apiKey = _emailSettings.ResendApiKey;
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            _logger.LogError("ResendApiKey is not configured. Set it in appsettings.json or Render Environment Variables.");
+            throw new InvalidOperationException("ResendApiKey is not configured.");
+        }
 
-        var builder = new BodyBuilder { HtmlBody = body };
-        email.Body = builder.ToMessageBody();
+        var payload = new
+        {
+            from = $"{_emailSettings.SenderName} <{_emailSettings.SenderEmail}>",
+            to = new[] { toEmail },
+            subject = subject,
+            html = body
+        };
 
-        using var smtp = new SmtpClient();
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        // Timeout 15 giây — nếu port bị block thì fail nhanh thay vì treo vô thời hạn
-        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var client = _httpClientFactory.CreateClient("Resend");
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", apiKey);
 
         try
         {
-            // SecureSocketOptions.Auto: tự động chọn SSL/TLS phù hợp với port
-            // port 465 → SslOnConnect (SSL trực tiếp, không bị block trên cloud)
-            // port 587 → StartTls (có thể bị block trên Render/AWS)
-            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort,
-                SecureSocketOptions.Auto, cts.Token);
-            _logger.LogInformation("SMTP connected. Authenticating as {SenderEmail}...", _emailSettings.SenderEmail);
+            var response = await client.PostAsync("https://api.resend.com/emails", content);
+            var responseBody = await response.Content.ReadAsStringAsync();
 
-            await smtp.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password, cts.Token);
-            _logger.LogInformation("SMTP authenticated. Sending email...");
-
-            await smtp.SendAsync(email, cancellationToken: cts.Token);
-            _logger.LogInformation("Email sent successfully to {ToEmail}", toEmail);
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Email sent successfully to {ToEmail}. Response: {Response}",
+                    toEmail, responseBody);
+            }
+            else
+            {
+                _logger.LogError("Resend API returned error {StatusCode} for {ToEmail}. Body: {Body}",
+                    response.StatusCode, toEmail, responseBody);
+                throw new HttpRequestException(
+                    $"Resend API error {response.StatusCode}: {responseBody}");
+            }
         }
-        catch (OperationCanceledException)
+        catch (HttpRequestException ex)
         {
-            _logger.LogError(
-                "SMTP connection TIMED OUT after 15s connecting to {SmtpServer}:{SmtpPort}. " +
-                "Port may be blocked by hosting firewall. Try port 465 in Render Environment Variables.",
-                _emailSettings.SmtpServer, _emailSettings.SmtpPort);
+            _logger.LogError(ex, "HTTP error calling Resend API for {ToEmail}", toEmail);
             throw;
         }
-        catch (MailKit.Security.AuthenticationException authEx)
+        catch (TaskCanceledException ex)
         {
-            _logger.LogError(authEx,
-                "SMTP AUTHENTICATION FAILED for {SenderEmail}. " +
-                "Check: 1) App Password correct? 2) Gmail 2FA enabled?",
-                _emailSettings.SenderEmail);
+            _logger.LogError(ex, "Resend API call timed out for {ToEmail}", toEmail);
             throw;
-        }
-        catch (MailKit.Net.Smtp.SmtpCommandException smtpEx)
-        {
-            _logger.LogError(smtpEx,
-                "SMTP command error sending to {ToEmail}. StatusCode={StatusCode}",
-                toEmail, smtpEx.StatusCode);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Unexpected error sending email to {ToEmail}. Server={SmtpServer}, Port={SmtpPort}",
-                toEmail, _emailSettings.SmtpServer, _emailSettings.SmtpPort);
-            throw;
-        }
-        finally
-        {
-            await smtp.DisconnectAsync(true);
         }
     }
 }

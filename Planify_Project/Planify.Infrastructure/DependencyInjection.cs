@@ -73,6 +73,8 @@ public static class DependencyInjection
 
         // ── Email & Background Jobs ──────────────────────────────────────────
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+        // Dùng IHttpClientFactory để gọi Resend HTTP API (thay SMTP bị block trên Render)
+        services.AddHttpClient();
         services.AddScoped<IEmailService, EmailService>();
         services.AddHostedService<DeadlineNotificationJob>();
 
