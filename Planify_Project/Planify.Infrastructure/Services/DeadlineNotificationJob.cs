@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Planify.Application.Interfaces;
+using Planify.Domain.Interfaces;
 using Planify.Infrastructure.Data;
 using System;
 using System.Linq;
@@ -56,6 +57,7 @@ public class DeadlineNotificationJob : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+        var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
 
         var nowUtc = DateTime.UtcNow;
         // Tính ngày "ngày mai" theo giờ Việt Nam
@@ -81,7 +83,7 @@ public class DeadlineNotificationJob : BackgroundService
             var user = await context.Users.FindAsync(plan.UserId);
             if (user != null && !string.IsNullOrEmpty(user.Email))
             {
-                string subject = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn vào ngày mai!";
+                string title = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
                     <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày <strong>{ToVietnamTime(plan.Deadline)}</strong> (ngày mai).</p>
@@ -92,6 +94,16 @@ public class DeadlineNotificationJob : BackgroundService
                 await emailService.SendEmailAsync(user.Email, subject, body);
 
                 plan.IsReminderSent = true;
+
+                // Add In-App Notification
+                await notificationRepo.AddAsync(new Domain.Entities.Notification
+                {
+                    UserId = user.Id,
+                    Title = "Sắp đến hạn kế hoạch",
+                    Message = $"Kế hoạch '{plan.Title}' sẽ đến hạn vào {plan.Deadline?.ToLocalTime():dd/MM/yyyy HH:mm}.",
+                    Type = "deadline",
+                    ReferenceId = plan.Id
+                });
             }
         }
 
@@ -112,7 +124,7 @@ public class DeadlineNotificationJob : BackgroundService
             var user = await context.Users.FindAsync(task.Plan.UserId);
             if (user != null && !string.IsNullOrEmpty(user.Email))
             {
-                string subject = $"Nhắc nhở: Công việc '{task.Title}' sắp đến hạn!";
+                string title = $"Nhắc nhở: Công việc '{task.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
                     <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(task.DueDate)}</strong>.</p>
@@ -120,15 +132,26 @@ public class DeadlineNotificationJob : BackgroundService
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
                 ";
-                await emailService.SendEmailAsync(user.Email, subject, body);
+                await emailService.SendEmailAsync(user.Email, title, body);
                 
                 task.IsReminderSent = true;
+
+                // Add In-App Notification
+                await notificationRepo.AddAsync(new Domain.Entities.Notification
+                {
+                    UserId = user.Id,
+                    Title = "Sắp đến hạn công việc",
+                    Message = $"Công việc '{task.Title}' sẽ đến hạn vào {task.DueDate?.ToLocalTime():dd/MM/yyyy HH:mm}.",
+                    Type = "deadline",
+                    ReferenceId = task.Id
+                });
             }
         }
 
         if (upcomingPlans.Any() || upcomingTasks.Any())
         {
             await context.SaveChangesAsync();
+            await notificationRepo.SaveChangesAsync();
         }
     }
 }

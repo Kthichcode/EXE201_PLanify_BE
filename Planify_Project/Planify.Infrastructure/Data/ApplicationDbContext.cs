@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<PlanFramework> PlanFrameworks => Set<PlanFramework>();
     public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
     public DbSet<CommunityPlan> CommunityPlans => Set<CommunityPlan>();
@@ -126,6 +127,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
             entity.Property(e => e.Currency).IsRequired().HasMaxLength(10);
             entity.Property(e => e.Amount).HasPrecision(18, 2);
+        });
+
+        builder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
         });
 
         builder.Entity<PlanFramework>(entity =>
