@@ -91,7 +91,7 @@ public class DeadlineNotificationJob : BackgroundService
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
                 ";
-                await emailService.SendEmailAsync(user.Email, subject, body);
+                await emailService.SendEmailAsync(user.Email, title, body);
 
                 plan.IsReminderSent = true;
 
