@@ -135,9 +135,7 @@ public static class DataSeeder
                 {
                     Id = softwareFwId,
                     Name = "Lập trình & Phát triển Phần mềm",
-                    Slug = "software-development",
                     Description = "Khung lập trình và phát triển phần mềm, ứng dụng, website.",
-                    Structure = "{}",
                     Keywords = "software,lập trình,phần mềm,web,app,coding,developer,it,code,git",
                     IsActive = true,
                     CreatedBy = adminUserId,
@@ -148,9 +146,7 @@ public static class DataSeeder
                 {
                     Id = educationFwId,
                     Name = "Luyện thi Chứng chỉ & Học tập",
-                    Slug = "education-certificates",
                     Description = "Khung kế hoạch học tập, ôn thi các chứng chỉ ngoại ngữ, chuyên môn.",
-                    Structure = "{}",
                     Keywords = "ielts,toeic,học tập,thi cử,chứng chỉ,study,english,tiếng anh,ôn thi",
                     IsActive = true,
                     CreatedBy = adminUserId,
