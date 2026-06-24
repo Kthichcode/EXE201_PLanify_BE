@@ -51,4 +51,7 @@ public interface ICommunityPlanService
 
     /// <summary>Admin từ chối plan → status = "rejected" kèm lý do.</summary>
     Task<CommunityPlanDto> RejectPlanAsync(Guid id, Guid adminId, string reason);
+
+    /// <summary>Admin xem chi tiết bất kỳ community plan (kèm toàn bộ task + subtask).</summary>
+    Task<CommunityPlanDto?> GetCommunityPlanDetailForAdminAsync(Guid id);
 }

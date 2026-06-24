@@ -36,6 +36,15 @@ public class AdminCommunityPlansController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Xem chi tiết bất kỳ community plan (kèm đầy đủ tasks + subtasks) để admin review trước khi duyệt.</summary>
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetDetail(Guid id)
+    {
+        var result = await _communityPlanService.GetCommunityPlanDetailForAdminAsync(id);
+        if (result == null) return NotFound(new { error = "Không tìm thấy community plan." });
+        return Ok(result);
+    }
+
     /// <summary>Duyệt một community plan (chuyển sang approved).</summary>
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id)
