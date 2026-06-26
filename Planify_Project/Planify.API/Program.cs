@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -107,9 +107,9 @@ var cs = builder.Configuration.GetConnectionString("DefaultConnection");
 
 try
 {
-    using var con = new SqlConnection(cs);
+    using var con = new NpgsqlConnection(cs);
     con.Open();
-    Console.WriteLine("SQL CONNECT OK");
+    Console.WriteLine("PostgreSQL CONNECT OK");
 }
 catch (Exception ex)
 {
