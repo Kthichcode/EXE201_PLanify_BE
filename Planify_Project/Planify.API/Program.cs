@@ -7,6 +7,10 @@ using Planify.Infrastructure;
 using Planify.Infrastructure.Data;
 using System.Text;
 
+// Fix: Npgsql 6+ rejects DateTime with Kind=Unspecified for 'timestamp with time zone' columns.
+// AI-returned date strings (e.g. "2024-01-01") parse as Kind=Unspecified → need legacy mode.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // CORS
