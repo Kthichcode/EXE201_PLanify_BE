@@ -1,10 +1,7 @@
-using System.Net;
-using System.Net.Sockets;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 using Planify.Application.Interfaces;
 using Planify.Application.Services;
 using Planify.Domain.Interfaces;
@@ -22,11 +19,10 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // ── DbContext ─────────────────────────────────────────────────────────
-        var rawCs = configuration.GetConnectionString("DefaultConnection")!;
-        var effectiveCs = ResolveToIPv4ConnectionString(rawCs);
+        var connectionString = configuration.GetConnectionString("DefaultConnection")!;
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(effectiveCs));
+            options.UseSqlServer(connectionString));
 
         // ── ASP.NET Identity ──────────────────────────────────────────────────
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
@@ -85,36 +81,5 @@ public static class DependencyInjection
 
         return services;
     }
-
-    private static string ResolveToIPv4ConnectionString(string connectionString)
-    {
-        try
-        {
-            var builder = new NpgsqlConnectionStringBuilder(connectionString);
-            var host = builder.Host;
-            if (string.IsNullOrEmpty(host)) return connectionString;
-
-            // Resolve hostname → pick first IPv4 address only
-            var addresses = Dns.GetHostAddresses(host)
-                .Where(a => a.AddressFamily == AddressFamily.InterNetwork)
-                .ToArray();
-
-            if (addresses.Length > 0)
-            {
-                builder.Host = addresses[0].ToString();
-                Console.WriteLine($"[IPv4] Resolved {host} → {builder.Host}");
-            }
-            else
-            {
-                Console.WriteLine($"[IPv4] No IPv4 address found for {host}, using original.");
-            }
-
-            return builder.ToString();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[IPv4] DNS resolve failed: {ex.Message}. Using original connection string.");
-            return connectionString;
-        }
-    }
 }
+

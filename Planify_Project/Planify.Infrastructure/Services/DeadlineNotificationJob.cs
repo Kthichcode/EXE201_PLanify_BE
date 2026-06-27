@@ -185,7 +185,7 @@ public class DeadlineNotificationJob : BackgroundService
                 string title = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
-                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày <strong>{ToVietnamTime(plan.Deadline)}</strong> (ngày mai).</p>
+                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày <strong>{ToVietnamDate(plan.Deadline)}</strong> (ngày mai).</p>
                     <p>Hãy nhanh chóng hoàn thành nhé!</p>
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
@@ -226,7 +226,7 @@ public class DeadlineNotificationJob : BackgroundService
                 string title = $"Nhắc nhở: Công việc '{task.Title}' sắp đến hạn!";
                 string body = $@"
                     <h3>Chào {user.UserName},</h3>
-                    <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(task.DueDate)}</strong>.</p>
+                    <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{ToVietnamDate(task.DueDate)}</strong>.</p>
                     <p>Đừng quên hoàn thành nhé!</p>
                     <br>
                     <p>Trân trọng,<br>Planify Team</p>
