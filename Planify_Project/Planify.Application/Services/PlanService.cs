@@ -135,6 +135,77 @@ public class PlanService : IPlanService
         var task = await _taskRepository.GetByIdAsync(taskId);
         if (task == null || task.PlanId != planId) throw new Exception("Task not found.");
 
+        // Chỉ kiểm tra thứ tự khi đánh dấu hoàn thành hoặc đang làm (không chặn khi bỏ tick)
+        if (dto.Status == "done" || dto.Status == "in_progress")
+        {
+            var allTasks = await _taskRepository.GetByPlanIdAsync(planId);
+            var parentTasks = allTasks.Where(t => t.ParentTaskId == null).OrderBy(t => t.OrderIndex).ToList();
+            var subtasks = allTasks.Where(t => t.ParentTaskId != null).ToList();
+
+            if (task.ParentTaskId == null)
+            {
+                // Đây là parent task (phase): kiểm tra tất cả phase trước phải hoàn thành
+                var previousParents = parentTasks
+                    .Where(t => t.OrderIndex < task.OrderIndex && t.Id != task.Id)
+                    .ToList();
+
+                foreach (var prevParent in previousParents)
+                {
+                    var prevChildren = subtasks.Where(s => s.ParentTaskId == prevParent.Id).ToList();
+
+                    bool prevParentDone;
+                    if (prevChildren.Any())
+                    {
+                        // Có subtask: tất cả subtask phải done
+                        prevParentDone = prevChildren.All(s => s.Status == "done");
+                    }
+                    else
+                    {
+                        // Không có subtask: bản thân parent task phải done
+                        prevParentDone = prevParent.Status == "done";
+                    }
+
+                    if (!prevParentDone)
+                    {
+                        throw new InvalidOperationException(
+                            $"Bạn phải hoàn thành '{prevParent.Title}' trước khi bắt đầu '{task.Title}'.");
+                    }
+                }
+            }
+            else
+            {
+                // Đây là subtask: tìm parent task của nó rồi kiểm tra tất cả phase trước phase đó
+                var parentTask = parentTasks.FirstOrDefault(t => t.Id == task.ParentTaskId);
+                if (parentTask != null)
+                {
+                    var previousParents = parentTasks
+                        .Where(t => t.OrderIndex < parentTask.OrderIndex && t.Id != parentTask.Id)
+                        .ToList();
+
+                    foreach (var prevParent in previousParents)
+                    {
+                        var prevChildren = subtasks.Where(s => s.ParentTaskId == prevParent.Id).ToList();
+
+                        bool prevParentDone;
+                        if (prevChildren.Any())
+                        {
+                            prevParentDone = prevChildren.All(s => s.Status == "done");
+                        }
+                        else
+                        {
+                            prevParentDone = prevParent.Status == "done";
+                        }
+
+                        if (!prevParentDone)
+                        {
+                            throw new InvalidOperationException(
+                                $"Bạn phải hoàn thành '{prevParent.Title}' trước khi thực hiện nhiệm vụ trong '{parentTask.Title}'.");
+                        }
+                    }
+                }
+            }
+        }
+
         task.Status = dto.Status;
         if (dto.Status == "done")
         {

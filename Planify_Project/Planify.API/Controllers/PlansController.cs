@@ -92,6 +92,10 @@ public class PlansController : ControllerBase
             var task = await _planService.UpdateTaskStatusAsync(planId, taskId, dto, userId);
             return Ok(task);
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
         catch (Exception ex)
         {
             if (ex.Message.Contains("not found") || ex.Message.Contains("access denied"))
