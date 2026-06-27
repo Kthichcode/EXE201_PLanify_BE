@@ -38,7 +38,7 @@ public class EmailService : IEmailService
         try
         {
             _logger.LogInformation("[Email] Đang kết nối tới {Server}:{Port}...", _emailSettings.SmtpServer, _emailSettings.SmtpPort);
-            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
+            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.Auto);
             _logger.LogInformation("[Email] Kết nối thành công. Đang xác thực tài khoản {Sender}...", _emailSettings.SenderEmail);
 
             await smtp.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password);
