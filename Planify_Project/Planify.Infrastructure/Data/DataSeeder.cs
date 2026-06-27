@@ -76,7 +76,7 @@ public static class DataSeeder
                     AiRefineLimit   = 3,
                     StorageLimitMb  = 50,
                     MaxPlans        = 3,
-                    Features        = "[\"3 lượt tạo kế hoạch AI\", \"3 lượt chỉnh sửa AI\", \"Lưu tối đa 3 kế hoạch\", \"Xem thư viện cộng đồng\"]",
+                    Features        = "\"3 lượt tạo kế hoạch AI\", \"3 lượt chỉnh sửa AI\", \"Lưu tối đa 3 kế hoạch\", \"Xem thư viện cộng đồng\"",
                     IsActive        = true,
                     CreatedAt       = DateTime.UtcNow,
                     UpdatedAt       = DateTime.UtcNow
@@ -92,7 +92,7 @@ public static class DataSeeder
                     AiRefineLimit   = 20,
                     StorageLimitMb  = 500,
                     MaxPlans        = 10,
-                    Features        = "[\"20 lượt tạo kế hoạch AI\", \"20 lượt chỉnh sửa AI (+1/ngày khi hết)\", \"Lưu tối đa 10 kế hoạch\", \"Chia sẻ & lưu kế hoạch từ thư viện\"]",
+                    Features        = "\"20 lượt tạo kế hoạch AI\", \"20 lượt chỉnh sửa AI (+1/ngày khi hết)\", \"Lưu tối đa 10 kế hoạch\", \"Chia sẻ & lưu kế hoạch từ thư viện\"",
                     IsActive        = true,
                     CreatedAt       = DateTime.UtcNow,
                     UpdatedAt       = DateTime.UtcNow
@@ -108,7 +108,7 @@ public static class DataSeeder
                     AiRefineLimit   = null,   // không giới hạn
                     StorageLimitMb  = null,
                     MaxPlans        = null,   // không giới hạn
-                    Features        = "[\"Không giới hạn lượt tạo kế hoạch AI\", \"Không giới hạn lượt chỉnh sửa AI\", \"Lưu trữ không giới hạn\", \"Chia sẻ & lưu kế hoạch từ thư viện\", \"Đầy đủ tính năng Premium\"]",
+                    Features        = "\"Không giới hạn lượt tạo kế hoạch AI\", \"Không giới hạn lượt chỉnh sửa AI\", \"Lưu trữ không giới hạn\", \"Chia sẻ & lưu kế hoạch từ thư viện\", \"Đầy đủ tính năng Premium\"",
                     IsActive        = true,
                     CreatedAt       = DateTime.UtcNow,
                     UpdatedAt       = DateTime.UtcNow
@@ -135,9 +135,7 @@ public static class DataSeeder
                 {
                     Id = softwareFwId,
                     Name = "Lập trình & Phát triển Phần mềm",
-                    Slug = "software-development",
                     Description = "Khung lập trình và phát triển phần mềm, ứng dụng, website.",
-                    Structure = "{}",
                     Keywords = "software,lập trình,phần mềm,web,app,coding,developer,it,code,git",
                     IsActive = true,
                     CreatedBy = adminUserId,
@@ -148,9 +146,7 @@ public static class DataSeeder
                 {
                     Id = educationFwId,
                     Name = "Luyện thi Chứng chỉ & Học tập",
-                    Slug = "education-certificates",
                     Description = "Khung kế hoạch học tập, ôn thi các chứng chỉ ngoại ngữ, chuyên môn.",
-                    Structure = "{}",
                     Keywords = "ielts,toeic,học tập,thi cử,chứng chỉ,study,english,tiếng anh,ôn thi",
                     IsActive = true,
                     CreatedBy = adminUserId,

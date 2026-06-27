@@ -29,6 +29,13 @@ public class CommunityPlanRepository : ICommunityPlanRepository
             .Include(cp => cp.Likes)
             .FirstOrDefaultAsync(cp => cp.Id == id, ct);
 
+    public async Task<CommunityPlan?> GetByIdWithDetailsForAdminAsync(Guid id, CancellationToken ct = default)
+        => await _context.CommunityPlans
+            .Include(cp => cp.Plan)
+                .ThenInclude(p => p!.Tasks)
+            .Include(cp => cp.Likes)
+            .FirstOrDefaultAsync(cp => cp.Id == id, ct);
+
     public async Task<bool> ExistsByPlanIdAsync(Guid planId, CancellationToken ct = default)
         => await _context.CommunityPlans
             .AnyAsync(cp => cp.PlanId == planId && cp.Status != "removed", ct);

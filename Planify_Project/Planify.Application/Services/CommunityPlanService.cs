@@ -327,6 +327,15 @@ public class CommunityPlanService : ICommunityPlanService
         return MapToDto(cp, null, false);
     }
 
+    public async Task<CommunityPlanDto?> GetCommunityPlanDetailForAdminAsync(Guid id)
+    {
+        var cp = await _communityPlanRepository.GetByIdWithDetailsForAdminAsync(id);
+        if (cp == null) return null;
+
+        return MapToDto(cp, null, true);
+    }
+
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static PlanTask CloneTask(PlanTask source, Guid newPlanId, Guid? parentTaskId)

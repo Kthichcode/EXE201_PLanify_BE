@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Planify.Infrastructure;
 using Planify.Infrastructure.Data;
 using System.Text;
+
+// Fix: Npgsql 6+ rejects DateTime with Kind=Unspecified for 'timestamp with time zone' columns.
+// AI-returned date strings (e.g. "2024-01-01") parse as Kind=Unspecified → need legacy mode.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -107,9 +111,9 @@ var cs = builder.Configuration.GetConnectionString("DefaultConnection");
 
 try
 {
-    using var con = new SqlConnection(cs);
+    using var con = new NpgsqlConnection(cs);
     con.Open();
-    Console.WriteLine("SQL CONNECT OK");
+    Console.WriteLine("PostgreSQL CONNECT OK");
 }
 catch (Exception ex)
 {

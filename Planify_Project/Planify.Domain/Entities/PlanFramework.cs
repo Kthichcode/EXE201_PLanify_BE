@@ -7,13 +7,7 @@ public class PlanFramework
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
-    public string Slug { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public string Structure { get; set; } = "{}"; // JSON structure of the framework (tasks schema etc.)
-    /// <summary>
-    /// Danh sách từ khóa phân cách bởi dấu phẩy, dùng để AI tự detect loại kế hoạch từ prompt của user.
-    /// VD: "website,web,wdlc,lập trình web,front-end,back-end"
-    /// </summary>
     public string? Keywords { get; set; }
     public bool IsActive { get; set; } = true;
     public Guid CreatedBy { get; set; }

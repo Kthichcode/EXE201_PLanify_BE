@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Planify.Application.Interfaces;
+using Planify.Domain.Interfaces;
 using Planify.Infrastructure.Data;
 using System;
 using System.Linq;
@@ -158,6 +159,7 @@ public class DeadlineNotificationJob : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+        var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
 
         var nowUtc = DateTime.UtcNow;
         var todayVn    = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, VietnamTz).Date;
@@ -180,21 +182,27 @@ public class DeadlineNotificationJob : BackgroundService
             var user = await context.Users.FindAsync(plan.UserId);
             if (user != null && !string.IsNullOrEmpty(user.Email))
             {
-                string displayName = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user.UserName ?? "bạn");
-                string subject = $"Kế hoạch \"{plan.Title}\" sắp đến hạn vào ngày mai";
-                string body = BuildEmailHtml(
-                    userName:      displayName,
-                    accentColor:   "#6366f1",
-                    badgeLabel:    "Nhắc nhở kế hoạch",
-                    mainTitle:     $"Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày mai. Hãy kiểm tra tiến độ và hoàn thành đúng hạn.",
-                    itemName:      plan.Title,
-                    parentName:    null,
-                    deadlineTime:  ToVietnamDate(plan.Deadline),
-                    actionMessage: "Chúc bạn hoàn thành tốt kế hoạch của mình."
-                );
+                string title = $"Nhắc nhở: Kế hoạch '{plan.Title}' sắp đến hạn!";
+                string body = $@"
+                    <h3>Chào {user.UserName},</h3>
+                    <p>Kế hoạch <strong>{plan.Title}</strong> của bạn sẽ đến hạn vào ngày <strong>{ToVietnamTime(plan.Deadline)}</strong> (ngày mai).</p>
+                    <p>Hãy nhanh chóng hoàn thành nhé!</p>
+                    <br>
+                    <p>Trân trọng,<br>Planify Team</p>
+                ";
+                await emailService.SendEmailAsync(user.Email, title, body);
 
-                await emailService.SendEmailAsync(user.Email, subject, body);
                 plan.IsReminderSent = true;
+
+                // Add In-App Notification
+                await notificationRepo.AddAsync(new Domain.Entities.Notification
+                {
+                    UserId = user.Id,
+                    Title = "Sắp đến hạn kế hoạch",
+                    Message = $"Kế hoạch '{plan.Title}' sẽ đến hạn vào {plan.Deadline?.ToLocalTime():dd/MM/yyyy HH:mm}.",
+                    Type = "deadline",
+                    ReferenceId = plan.Id
+                });
             }
         }
 
@@ -215,27 +223,34 @@ public class DeadlineNotificationJob : BackgroundService
             var user = await context.Users.FindAsync(task.Plan.UserId);
             if (user != null && !string.IsNullOrEmpty(user.Email))
             {
-                string displayName = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user.UserName ?? "bạn");
-                string subject = $"Công việc \"{task.Title}\" sắp đến hạn";
-                string body = BuildEmailHtml(
-                    userName:      displayName,
-                    accentColor:   "#f59e0b",
-                    badgeLabel:    "Nhắc nhở công việc",
-                    mainTitle:     $"Công việc <strong>{task.Title}</strong> của bạn sắp đến hạn. Hãy hoàn thành đúng tiến độ.",
-                    itemName:      task.Title,
-                    parentName:    task.Plan.Title,
-                    deadlineTime:  ToVietnamDate(task.DueDate),
-                    actionMessage: "Mỗi công việc hoàn thành là một bước tiến gần hơn đến mục tiêu."
-                );
-
-                await emailService.SendEmailAsync(user.Email, subject, body);
+                string title = $"Nhắc nhở: Công việc '{task.Title}' sắp đến hạn!";
+                string body = $@"
+                    <h3>Chào {user.UserName},</h3>
+                    <p>Công việc <strong>{task.Title}</strong> (thuộc Kế hoạch {task.Plan.Title}) của bạn sẽ đến hạn vào lúc <strong>{ToVietnamTime(task.DueDate)}</strong>.</p>
+                    <p>Đừng quên hoàn thành nhé!</p>
+                    <br>
+                    <p>Trân trọng,<br>Planify Team</p>
+                ";
+                await emailService.SendEmailAsync(user.Email, title, body);
+                
                 task.IsReminderSent = true;
+
+                // Add In-App Notification
+                await notificationRepo.AddAsync(new Domain.Entities.Notification
+                {
+                    UserId = user.Id,
+                    Title = "Sắp đến hạn công việc",
+                    Message = $"Công việc '{task.Title}' sẽ đến hạn vào {task.DueDate?.ToLocalTime():dd/MM/yyyy HH:mm}.",
+                    Type = "deadline",
+                    ReferenceId = task.Id
+                });
             }
         }
 
         if (upcomingPlans.Any() || upcomingTasks.Any())
         {
             await context.SaveChangesAsync();
+            await notificationRepo.SaveChangesAsync();
         }
     }
 }

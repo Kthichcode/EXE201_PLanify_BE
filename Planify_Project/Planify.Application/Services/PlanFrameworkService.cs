@@ -38,15 +38,10 @@ public class PlanFrameworkService : IPlanFrameworkService
 
     public async Task<ResponseDto<PlanFrameworkDto>> CreateFrameworkAsync(CreatePlanFrameworkDto dto, Guid adminId)
     {
-        if (await _repo.SlugExistsAsync(dto.Slug))
-            return ResponseDto<PlanFrameworkDto>.Fail("Slug framework đã tồn tại.", 400);
-
         var framework = new PlanFramework
         {
             Name = dto.Name,
-            Slug = dto.Slug.ToLower(),
             Description = dto.Description,
-            Structure = dto.Structure,
             Keywords = dto.Keywords,
             IsActive = dto.IsActive,
             CreatedBy = adminId,
@@ -66,13 +61,8 @@ public class PlanFrameworkService : IPlanFrameworkService
         if (framework == null)
             return ResponseDto<PlanFrameworkDto>.Fail("Không tìm thấy framework cần chỉnh sửa.", 404);
 
-        if (await _repo.SlugExistsAsync(dto.Slug, id))
-            return ResponseDto<PlanFrameworkDto>.Fail("Slug framework đã tồn tại ở framework khác.", 400);
-
         framework.Name = dto.Name;
-        framework.Slug = dto.Slug.ToLower();
         framework.Description = dto.Description;
-        framework.Structure = dto.Structure;
         framework.Keywords = dto.Keywords;
         framework.IsActive = dto.IsActive;
         framework.UpdatedAt = DateTime.UtcNow;
@@ -110,9 +100,7 @@ public class PlanFrameworkService : IPlanFrameworkService
     {
         Id = f.Id,
         Name = f.Name,
-        Slug = f.Slug,
         Description = f.Description,
-        Structure = f.Structure,
         Keywords = f.Keywords,
         IsActive = f.IsActive,
         CreatedBy = f.CreatedBy,
@@ -120,3 +108,4 @@ public class PlanFrameworkService : IPlanFrameworkService
         UpdatedAt = f.UpdatedAt
     };
 }
+

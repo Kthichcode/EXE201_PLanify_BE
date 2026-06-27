@@ -1,5 +1,6 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Planify.Application.Interfaces;
@@ -11,10 +12,12 @@ namespace Planify.Infrastructure.Services;
 public class EmailService : IEmailService
 {
     private readonly EmailSettings _emailSettings;
+    private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IOptions<EmailSettings> emailSettings)
+    public EmailService(IOptions<EmailSettings> emailSettings, ILogger<EmailService> logger)
     {
         _emailSettings = emailSettings.Value;
+        _logger = logger;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
@@ -39,7 +42,7 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error sending email to {toEmail}: {ex.Message}");
+            _logger.LogError(ex, "Error sending email to {ToEmail}", toEmail);
         }
         finally
         {

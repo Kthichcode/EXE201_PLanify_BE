@@ -23,6 +23,9 @@ public interface IUserRepository
 
     Task<bool> CheckPasswordAsync(Guid userId, string password);
     Task<IList<string>> GetRolesAsync(Guid userId);
+
+    /// <summary>Cập nhật trạng thái và bước onboarding của user.</summary>
+    Task<bool> UpdateOnboardingAsync(Guid userId, string status, int step);
 }
 
 /// <summary>
@@ -33,5 +36,7 @@ public record UserAccountDto(
     Guid   Id,
     string Email,
     string FullName,
-    bool   EmailConfirmed
+    bool   EmailConfirmed,
+    string OnboardingStatus  = "not_started",
+    int    OnboardingStep    = 0
 );

@@ -28,14 +28,7 @@ public class PlanFrameworkRepository : IPlanFrameworkRepository
     public async Task<List<PlanFramework>> GetActiveAsync(CancellationToken ct = default)
         => await _context.PlanFrameworks.Where(f => f.IsActive).OrderBy(f => f.Name).ToListAsync(ct);
 
-    public async Task<bool> SlugExistsAsync(string slug, Guid? excludeId = null, CancellationToken ct = default)
-    {
-        if (excludeId.HasValue)
-        {
-            return await _context.PlanFrameworks.AnyAsync(f => f.Slug == slug && f.Id != excludeId.Value, ct);
-        }
-        return await _context.PlanFrameworks.AnyAsync(f => f.Slug == slug, ct);
-    }
+
 
     public async Task<PlanFramework?> FindByKeywordAsync(string prompt, CancellationToken ct = default)
     {

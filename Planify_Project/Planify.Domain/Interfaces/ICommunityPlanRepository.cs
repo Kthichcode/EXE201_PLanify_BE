@@ -13,6 +13,10 @@ public interface ICommunityPlanRepository
     /// <summary>Load kèm Plan (với Tasks) và Likes.</summary>
     Task<CommunityPlan?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>Load kèm Plan (với Tasks) cho admin — không giới hạn status.</summary>
+    Task<CommunityPlan?> GetByIdWithDetailsForAdminAsync(Guid id, CancellationToken ct = default);
+
+
     /// <summary>Kiểm tra plan gốc đã được publish chưa.</summary>
     Task<bool> ExistsByPlanIdAsync(Guid planId, CancellationToken ct = default);
 
