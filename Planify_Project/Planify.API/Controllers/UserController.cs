@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planify.Application.DTOs.Common;
+using Planify.Application.DTOs.User;
 using Planify.Application.DTOs.User.Response;
 using Planify.Application.Interfaces;
 using System.Security.Claims;
@@ -36,6 +37,42 @@ public class UserController : ControllerBase
             return Unauthorized(ResponseDto<UserProfileResponseDto>.Fail("Không xác định được người dùng.", 401));
 
         var response = await _userService.GetProfileAsync(userId);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>Lấy trạng thái onboarding tour. FE gọi sau khi login để quyết định có hiển thị tour không.</summary>
+    [HttpGet("onboarding")]
+    public async Task<IActionResult> GetOnboarding()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? User.FindFirstValue("sub");
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var response = await _userService.GetOnboardingStatusAsync(userId);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Cập nhật trạng thái onboarding.<br/>
+    /// - Bắt đầu tour: status="in_progress", step=0<br/>
+    /// - Tiếp tục bước kế tiếp: status="in_progress", step=N<br/>
+    /// - Hoàn thành: status="completed", step=TỔNG_SỐ_BƯỜC<br/>
+    /// - Bỏ qua/dừng giữa chừng: status="skipped", step=BƯỜC_HIỆN_TẠI
+    /// </summary>
+    [HttpPut("onboarding")]
+    public async Task<IActionResult> UpdateOnboarding([FromBody] UpdateOnboardingDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? User.FindFirstValue("sub");
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var response = await _userService.UpdateOnboardingAsync(userId, dto);
         return StatusCode(response.StatusCode, response);
     }
 }

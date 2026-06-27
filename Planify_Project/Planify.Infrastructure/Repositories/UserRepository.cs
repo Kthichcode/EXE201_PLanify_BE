@@ -78,8 +78,21 @@ public class UserRepository : IUserRepository
         return await _userManager.GetRolesAsync(user);
     }
 
+    public async Task<bool> UpdateOnboardingAsync(Guid userId, string status, int step)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null) return false;
+
+        user.OnboardingStatus = status;
+        user.OnboardingStep   = step;
+
+        var result = await _userManager.UpdateAsync(user);
+        return result.Succeeded;
+    }
+
     // ── Mapper ───────────────────────────────────────────────────────────────
 
     private static UserAccountDto ToDto(ApplicationUser user) =>
-        new(user.Id, user.Email!, user.FullName, user.EmailConfirmed);
+        new(user.Id, user.Email!, user.FullName, user.EmailConfirmed,
+            user.OnboardingStatus, user.OnboardingStep);
 }

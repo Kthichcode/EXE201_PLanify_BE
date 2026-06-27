@@ -1,4 +1,5 @@
 using Planify.Application.DTOs.Common;
+using Planify.Application.DTOs.User;
 using Planify.Application.DTOs.User.Response;
 using Planify.Application.Interfaces;
 using Planify.Domain.Interfaces;
@@ -70,5 +71,33 @@ public class UserService : IUserService
         }
 
         return ResponseDto<IEnumerable<UserAdminResponseDto>>.Success(result, "Lấy danh sách người dùng thành công.", 200);
+    }
+
+    public async Task<ResponseDto<OnboardingStatusDto>> GetOnboardingStatusAsync(string userId)
+    {
+        if (!Guid.TryParse(userId, out var guid))
+            return ResponseDto<OnboardingStatusDto>.Fail("UserId không hợp lệ.", 400);
+
+        var user = await _userRepo.FindByIdAsync(guid);
+        if (user is null)
+            return ResponseDto<OnboardingStatusDto>.Fail("Không tìm thấy người dùng.", 404);
+
+        return ResponseDto<OnboardingStatusDto>.Success(
+            new OnboardingStatusDto { Status = user.OnboardingStatus, Step = user.OnboardingStep },
+            "Lấy trạng thái onboarding thành công.", 200);
+    }
+
+    public async Task<ResponseDto<OnboardingStatusDto>> UpdateOnboardingAsync(string userId, UpdateOnboardingDto dto)
+    {
+        if (!Guid.TryParse(userId, out var guid))
+            return ResponseDto<OnboardingStatusDto>.Fail("UserId không hợp lệ.", 400);
+
+        var succeeded = await _userRepo.UpdateOnboardingAsync(guid, dto.Status, dto.Step);
+        if (!succeeded)
+            return ResponseDto<OnboardingStatusDto>.Fail("Không thể cập nhật trạng thái onboarding.", 500);
+
+        return ResponseDto<OnboardingStatusDto>.Success(
+            new OnboardingStatusDto { Status = dto.Status, Step = dto.Step },
+            "Cập nhật onboarding thành công.", 200);
     }
 }
