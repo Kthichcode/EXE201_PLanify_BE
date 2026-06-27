@@ -39,10 +39,12 @@ public class EmailService : IEmailService
         {
             _logger.LogInformation("[Email] Đang kết nối tới {Server}:{Port}...", _emailSettings.SmtpServer, _emailSettings.SmtpPort);
             await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.Auto);
-            _logger.LogInformation("[Email] Kết nối thành công. Đang xác thực tài khoản {Sender}...", _emailSettings.SenderEmail);
+            var smtpLogin = string.IsNullOrEmpty(_emailSettings.Login)
+                ? _emailSettings.SenderEmail
+                : _emailSettings.Login;
 
-            await smtp.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password);
-            _logger.LogInformation("[Email] Xác thực thành công. Đang gửi email...");
+            await smtp.AuthenticateAsync(smtpLogin, _emailSettings.Password);
+            _logger.LogInformation("[Email] Xác thực thành công (login: {Login}). Đang gửi email...", smtpLogin);
 
             await smtp.SendAsync(email);
             _logger.LogInformation("[Email] ✅ Gửi email thành công tới {ToEmail}", toEmail);
