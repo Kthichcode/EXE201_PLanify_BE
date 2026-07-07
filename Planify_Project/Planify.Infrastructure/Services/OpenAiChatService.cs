@@ -65,12 +65,12 @@ public class OpenAiChatService : IAiChatService
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
         """;
 
-    // ── System prompt REFINE PLAN (AI chỉnh sửa kế hoạch hiện tại theo yêu cầu) ──
+    // ── System prompt REFINE PLAN ─────────────────────────────────────────
     private const string RefinePlanSystemPrompt =
         """
         Bạn là Planify AI. Nhiệm vụ: nhận kế hoạch JSON hiện tại và chỉnh sửa theo yêu cầu của người dùng.
 
-        QUY TẮC BẮT BUỘC:
+        QUY TẮc BẮT BUỘC:
         1. CHỈ trả về JSON thuần - không giải thích, không markdown, không backtick.
         2. Giữ nguyên schema JSON gốc, chỉ thay đổi nội dung theo yêu cầu.
         3. Ngôn ngữ trong JSON: Tiếng Việt.
@@ -88,6 +88,31 @@ public class OpenAiChatService : IAiChatService
         {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"message":""}}
         """;
 
+    // ── System prompt ANALYZE DELAY (phân tích trễ tiến độ + đề xuất tối ưu) ──────────────
+    private const string AnalyzeDelaySystemPrompt =
+        """
+        Bạn là Planify AI chuyên gia tối ưu kế hoạch.
+        Nhiệm vụ: phân tích tình trạng trễ tiến độ và xuất ra JSON kế hoạch đã được tối ưu.
+
+        QUY TẮc BẮT BUỘC:
+        1. CHỈ trả về JSON thuần - không giải thích, không markdown, không backtick.
+        2. Giữ nguyên toàn bộ schema JSON gốc. KHÔNG đổi Title của task/subtask đã hoàn thành (Status="done").
+        3. Ngôn ngữ trong JSON: Tiếng Việt.
+        4. Chỉ chỉnh sửa StartDate/DueDate của các task/subtask chưa hoàn thành.
+        5. TUỰ CHỌN chiến lược dựa trên daysToDeadline nhận được:
+           - Nếu daysToDeadline > 7: chiến lược "reschedule" — dồn task trễ sang ngày khác, KHÔNG thay đổi Deadline tổng.
+           - Nếu daysToDeadline ≤ 7: chiến lược "extend_deadline" — mở rộng Deadline thêm tối đa 14 ngày và sắp xếp lại tasks.
+        6. metadata.message GHI RÕ:
+           a. Chiến lược đã chọn (reschedule hoặc extend_deadline).
+           b. Lý do + tóm tắt những gì đã thay đổi.
+           c. THÊM trường "strategy": "reschedule" | "extend_deadline" vào metadata.
+        7. DueDate task nằm trong [hôm nay, Deadline]. DueDate subtask nằm trong [hôm nay, DueDate task cha].
+        8. totalTasks và totalSubtasks đếm lại chính xác.
+        9. TOKEN BUDGET: JSON output PHẢI hoàn chỉnh trong 6000 tokens. Rút ngắn Description nếu cần.
+
+        SCHEMA JSON (giữ nguyên, chỉ chỉnh sửa nội dung):
+        {"plan":{"Title":"","Description":"","Goal":"","Deadline":"YYYY-MM-DD","IsAIGenerated":true,"Status":"active","Progress":0,"IsPublic":false},"tasks":[{"Title":"","Description":"","Priority":"high","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1,"subtasks":[{"Title":"","Description":"","Priority":"medium","Status":"todo","StartDate":"YYYY-MM-DD","DueDate":"YYYY-MM-DD","Progress":0,"OrderIndex":1}]}],"metadata":{"estimatedDays":0,"totalTasks":0,"totalSubtasks":0,"suggestedFramework":null,"strategy":"","message":""}}
+        """;
 
     public OpenAiChatService(
         HttpClient httpClient,
@@ -301,7 +326,76 @@ NỘI DUNG TEMPLATE:
         };
     }
 
+    // ── ANALYZE DELAY ───────────────────────────────────────────────────────────
 
+    public async Task<GeneratePlanResponseDto> AnalyzeDelayAsync(
+        string currentPlanJson,
+        int overdueCount,
+        int daysToDeadline,
+        CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+
+        var today = DateTime.UtcNow.AddHours(7).ToString("yyyy-MM-dd");
+
+        var strategyHint = daysToDeadline > 7
+            ? "Dồn các task/subtask trễ sang ngày khác (reschedule), giữ nguyên Deadline tổng."
+            : $"Deadline chỉ còn {daysToDeadline} ngày. Hãy mở rộng Deadline tối đa 14 ngày và sắp xếp lại lịch trình.";
+
+        var userMessage =
+            $"""
+            Ngày hôm nay: {today}
+            Tình trạng: {overdueCount} subtask đã trễ deadline. Deadline tổng còn {daysToDeadline} ngày.
+            Gợi ý chiến lược: {strategyHint}
+
+            Kế hoạch hiện tại (JSON):
+            {currentPlanJson}
+
+            Hãy phân tích và xuất ra JSON kế hoạch đã được tối ưu.
+            """;
+
+        var messages = new List<OpenAiMessage>
+        {
+            new() { Role = "system", Content = AnalyzeDelaySystemPrompt },
+            new() { Role = "user",   Content = userMessage }
+        };
+
+        _logger.LogInformation(
+            "Analyzing plan delay via OpenAI: overdueCount={OverdueCount}, daysToDeadline={Days}",
+            overdueCount, daysToDeadline);
+
+        var reply = await CallOpenAiAsync(messages, maxTokens: 6000, cancellationToken);
+
+        sw.Stop();
+        _logger.LogDebug("OpenAI delay analysis ({ElapsedMs}ms):\n{Raw}", sw.ElapsedMilliseconds, reply.Content);
+
+        var jsonContent = ExtractJson(reply.Content);
+        JsonObject planData;
+        try
+        {
+            var node = JsonNode.Parse(jsonContent);
+            if (node is not JsonObject obj)
+                throw new InvalidOperationException("AI không trả về JSON object hợp lệ.");
+            planData = obj;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON parse thất bại (delay analysis). Raw:\n{Raw}", reply.Content);
+            throw new InvalidOperationException(
+                $"AI không trả về JSON hợp lệ. Chi tiết: {ex.Message}. Vui lòng thử lại.", ex);
+        }
+
+        var message = planData["metadata"]?["message"]?.GetValue<string>()
+            ?? "Kế hoạch đã được tối ưu lại.";
+
+        return new GeneratePlanResponseDto
+        {
+            PlanData  = planData,
+            Message   = message,
+            Model     = reply.Model,
+            ElapsedMs = sw.ElapsedMilliseconds
+        };
+    }
 
     private async Task<(string Content, string Model)> CallOpenAiAsync(
         List<OpenAiMessage> messages,

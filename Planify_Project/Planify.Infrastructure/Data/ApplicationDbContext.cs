@@ -25,6 +25,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<CommunityPlan> CommunityPlans => Set<CommunityPlan>();
     public DbSet<CommunityPlanLike> CommunityPlanLikes => Set<CommunityPlanLike>();
     public DbSet<PlanCopy> PlanCopies => Set<PlanCopy>();
+    public DbSet<PlanFeedback> PlanFeedbacks => Set<PlanFeedback>();
+    public DbSet<GeneralFeedback> GeneralFeedbacks => Set<GeneralFeedback>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -230,6 +232,51 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<PlanFeedback>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Unique: mỗi user chỉ được gửi 1 feedback cho mỗi plan
+            entity.HasIndex(e => new { e.UserId, e.PlanId }).IsUnique();
+
+            entity.Property(e => e.Reason).HasMaxLength(1000);
+            entity.Property(e => e.Suggestions).HasMaxLength(2000);
+
+            entity.HasOne(e => e.Plan)
+                .WithMany()
+                .HasForeignKey(e => e.PlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CommunityPlan)
+                .WithMany()
+                .HasForeignKey(e => e.CommunityPlanId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<GeneralFeedback>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Description).HasMaxLength(3000);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

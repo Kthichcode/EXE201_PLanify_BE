@@ -46,6 +46,11 @@ public class CommunityPlanService : ICommunityPlanService
         if (plan.Status == "draft")
             throw new InvalidOperationException("Không thể publish plan đang ở trạng thái draft. Vui lòng xác nhận plan trước.");
 
+        // 3 (bổ sung). Kiểm tra tiến độ hoàn thành
+        if (plan.Progress < 100 && plan.Status != "complete")
+            throw new InvalidOperationException(
+                "Bạn cần hoàn thành tất cả task (tiến độ đạt 100% hoặc trạng thái 'complete') trước khi publish lên thư viện cộng đồng.");
+
         // 2. Kiểm tra plan chưa được publish
         var alreadyPublished = await _communityPlanRepository.ExistsByPlanIdAsync(dto.PlanId);
         if (alreadyPublished)

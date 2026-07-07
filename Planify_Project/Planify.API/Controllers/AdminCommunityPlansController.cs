@@ -14,10 +14,14 @@ namespace Planify.API.Controllers;
 public class AdminCommunityPlansController : ControllerBase
 {
     private readonly ICommunityPlanService _communityPlanService;
+    private readonly IPlanFeedbackService _feedbackService;
 
-    public AdminCommunityPlansController(ICommunityPlanService communityPlanService)
+    public AdminCommunityPlansController(
+        ICommunityPlanService communityPlanService,
+        IPlanFeedbackService feedbackService)
     {
         _communityPlanService = communityPlanService;
+        _feedbackService      = feedbackService;
     }
 
     private Guid GetAdminId()
@@ -108,6 +112,42 @@ public class AdminCommunityPlansController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Đã có lỗi xảy ra.", details = ex.Message });
+        }
+    }
+
+    // ── Feedback (Khảo sát hiệu quả AI Plan) ───────────────────────────────
+
+    /// <summary>
+    /// Xem toàn bộ feedback khảo sát AI plan (có phân trang).
+    /// </summary>
+    [HttpGet("feedbacks")]
+    public async Task<IActionResult> GetAllFeedbacks([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var result = await _feedbackService.GetAllFeedbackAsync(page, pageSize);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Đã có lỗi xảy ra.", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Xem tất cả feedback khảo sát của một plan cụ thể.
+    /// </summary>
+    [HttpGet("{id:guid}/feedbacks")]
+    public async Task<IActionResult> GetFeedbacksByPlan(Guid id)
+    {
+        try
+        {
+            var result = await _feedbackService.GetFeedbackByPlanAsync(id);
+            return Ok(result);
         }
         catch (Exception ex)
         {

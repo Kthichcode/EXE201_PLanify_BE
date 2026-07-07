@@ -485,9 +485,21 @@ public class PlanService : IPlanService
         // ── 4. Overwrite trong transaction ───────────────────────────────────
         await _planRepository.ExecuteInTransactionAsync(async () =>
         {
-            // 4a. Xóa toàn bộ tasks/subtasks cũ
+            // 4a. Snapshot tiến độ tasks/subtasks cũ theo Title (case-insensitive)
+            //     để restore lại sau khi AI tạo tasks mới, bảo toàn công việc đã hoàn thành.
+            var progressSnapshot = new Dictionary<string, (string Status, int Progress, DateTime? CompletedAt)>(
+                StringComparer.OrdinalIgnoreCase);
+
             if (plan.Tasks != null)
             {
+                foreach (var t in plan.Tasks)
+                {
+                    // Chỉ snapshot task đã có tiến độ thực sự (không phải todo/0%)
+                    if (t.Status != "todo" || t.Progress > 0)
+                        progressSnapshot[t.Title.Trim()] = (t.Status, t.Progress, t.CompletedAt);
+                }
+
+                // Xóa toàn bộ tasks/subtasks cũ
                 var allTasks = plan.Tasks.ToList();
                 foreach (var t in allTasks)
                     await _taskRepository.DeleteAsync(t);
@@ -500,8 +512,8 @@ public class PlanService : IPlanService
             plan.Goal           = GetStr(planNode, "Goal") ?? plan.Goal;
             plan.Deadline       = GetDate(planNode, "Deadline") ?? plan.Deadline;
             plan.IsPublic       = planNode["IsPublic"]?.GetValue<bool>() ?? plan.IsPublic;
-            plan.Progress       = 0;
             plan.UpdatedAt      = DateTime.UtcNow;
+            // Không reset Progress về 0 — sẽ tính lại sau khi restore
 
             // Gia hạn thêm 24h nếu là draft, không đụng DraftExpiresAt nếu đã active
             if (plan.Status == "draft")
@@ -509,8 +521,10 @@ public class PlanService : IPlanService
 
             await _planRepository.SaveChangesAsync();
 
-            // 4c. Insert tasks/subtasks mới
+            // 4c. Insert tasks/subtasks mới từ AI, restore tiến độ nếu title khớp snapshot
             int taskOrder = 1;
+            int totalTasks = 0, doneTasks = 0;
+
             foreach (var tNode in tasksNode)
             {
                 if (tNode is null) continue;
@@ -527,16 +541,20 @@ public class PlanService : IPlanService
                 if (taskDueDate.HasValue && plan.Deadline.HasValue && taskDueDate.Value > plan.Deadline.Value)
                     taskDueDate = plan.Deadline; // Clamp về deadline plan
 
+                // Restore tiến độ nếu task title khớp với snapshot cũ
+                progressSnapshot.TryGetValue(taskTitle.Trim(), out var restoredTask);
+
                 var task = new PlanTask
                 {
                     PlanId      = plan.Id,
                     Title       = taskTitle,
                     Description = taskDesc,
                     Priority    = GetStr(tNode, "Priority") ?? "medium",
-                    Status      = "todo",
+                    Status      = restoredTask != default ? restoredTask.Status : "todo",
                     StartDate   = GetDate(tNode, "StartDate"),
                     DueDate     = taskDueDate,
-                    Progress    = 0,
+                    Progress    = restoredTask != default ? restoredTask.Progress : 0,
+                    CompletedAt = restoredTask != default ? restoredTask.CompletedAt : null,
                     OrderIndex  = tNode["OrderIndex"]?.GetValue<int>() ?? taskOrder,
                     CreatedAt   = DateTime.UtcNow,
                     UpdatedAt   = DateTime.UtcNow
@@ -548,9 +566,13 @@ public class PlanService : IPlanService
                 await _taskRepository.AddAsync(task);
                 await _taskRepository.SaveChangesAsync();
 
+                totalTasks++;
+                if (task.Status == "done") doneTasks++;
+
                 int subOrder = 1;
                 if (subNode is not null)
                 {
+                    int subTotal = 0, subDone = 0;
                     foreach (var stNode in subNode)
                     {
                         if (stNode is null) continue;
@@ -567,6 +589,9 @@ public class PlanService : IPlanService
                         if (subDueDate.HasValue && task.DueDate.HasValue && subDueDate.Value > task.DueDate.Value)
                             subDueDate = task.DueDate; // Clamp về DueDate task cha
 
+                        // Restore tiến độ subtask nếu title khớp
+                        progressSnapshot.TryGetValue(subTitle.Trim(), out var restoredSub);
+
                         var subtask = new PlanTask
                         {
                             PlanId       = plan.Id,
@@ -574,28 +599,47 @@ public class PlanService : IPlanService
                             Title        = subTitle,
                             Description  = subDesc,
                             Priority     = GetStr(stNode, "Priority") ?? "medium",
-                            Status       = "todo",
+                            Status       = restoredSub != default ? restoredSub.Status : "todo",
                             StartDate    = GetDate(stNode, "StartDate"),
                             DueDate      = subDueDate,
-                            Progress     = 0,
+                            Progress     = restoredSub != default ? restoredSub.Progress : 0,
+                            CompletedAt  = restoredSub != default ? restoredSub.CompletedAt : null,
                             OrderIndex   = stNode["OrderIndex"]?.GetValue<int>() ?? subOrder,
                             CreatedAt    = DateTime.UtcNow,
                             UpdatedAt    = DateTime.UtcNow
                         };
 
                         await _taskRepository.AddAsync(subtask);
+                        subTotal++;
+                        if (subtask.Status == "done") subDone++;
                         subOrder++;
                     }
                     await _taskRepository.SaveChangesAsync();
+
+                    // Nếu task chưa được restore từ snapshot → tính lại progress từ subtasks
+                    if (restoredTask == default && subTotal > 0)
+                    {
+                        task.Progress  = (int)Math.Round((double)subDone / subTotal * 100);
+                        task.Status    = task.Progress == 100 ? "done" : task.Progress > 0 ? "in_progress" : "todo";
+                        if (task.Status == "done") { task.CompletedAt = DateTime.UtcNow; doneTasks++; totalTasks--; }
+                        await _taskRepository.SaveChangesAsync();
+                    }
                 }
 
                 taskOrder++;
             }
+
+            // 4d. Tính lại Progress tổng của plan
+            plan.Progress  = totalTasks > 0
+                ? (int)Math.Round((double)doneTasks / totalTasks * 100)
+                : 0;
+            await _planRepository.SaveChangesAsync();
         });
 
         return await GetPlanByIdAsync(plan.Id, userId)
             ?? throw new InvalidOperationException("Không thể load plan sau khi chỉnh sửa.");
     }
+
 
     private async Task RecalculatePlanProgressAsync(Guid planId)
     {

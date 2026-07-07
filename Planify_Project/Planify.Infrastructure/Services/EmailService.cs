@@ -22,12 +22,11 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
-        _logger.LogInformation("[Email] Bắt đầu gửi email tới {ToEmail} | Subject: {Subject}", toEmail, subject);
-        _logger.LogInformation("[Email] SMTP Config → Server: {Server}, Port: {Port}, SenderEmail: {Sender}",
-            _emailSettings.SmtpServer, _emailSettings.SmtpPort, _emailSettings.SenderEmail);
+        var senderAddress = new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail);
 
         var email = new MimeMessage();
-        email.Sender = MailboxAddress.Parse(_emailSettings.SenderEmail);
+        email.From.Add(senderAddress);   // hiển thị tên "Planify System" trong hộp thư đến
+        email.Sender = senderAddress;    // xác nhận người gửi thực tế
         email.To.Add(MailboxAddress.Parse(toEmail));
         email.Subject = subject;
 
@@ -72,3 +71,4 @@ public class EmailService : IEmailService
         }
     }
 }
+

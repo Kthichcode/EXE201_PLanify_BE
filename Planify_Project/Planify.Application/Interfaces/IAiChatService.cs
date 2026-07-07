@@ -29,5 +29,13 @@ public interface IAiChatService
     /// Nhận JSON plan hiện tại + instruction → trả về JSON plan đã được chỉnh sửa (cùng schema).
     /// </summary>
     Task<GeneratePlanResponseDto> RefinePlanAsync(string currentPlanJson, string instruction, CancellationToken cancellationToken = default);
-}
 
+    /// <summary>
+    /// Phân tích tình trạng trễ tiến độ của plan và đề xuất tối ưu lại lịch trình.
+    /// AI tự chọn chiến lược phù hợp:
+    ///   - "reschedule": dồn task trễ sang ngày khác, không thay đổi deadline chung.
+    ///   - "extend_deadline": đề xuất mở rộng deadline khi deadline đang đến gần.
+    /// Trả về JSON plan đề xuất (chưa lưu DB) + strategy + giải thích.
+    /// </summary>
+    Task<GeneratePlanResponseDto> AnalyzeDelayAsync(string currentPlanJson, int overdueCount, int daysToDeadline, CancellationToken cancellationToken = default);
+}
