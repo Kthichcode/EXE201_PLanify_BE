@@ -117,6 +117,31 @@ namespace Planify.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "GeneralFeedbacks",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Category = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "character varying(3000)", maxLength: 3000, nullable: true),
+                    Rating = table.Column<int>(type: "integer", nullable: true),
+                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_GeneralFeedbacks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_GeneralFeedbacks_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Notifications",
                 columns: table => new
                 {
@@ -365,6 +390,7 @@ namespace Planify.Infrastructure.Migrations
                     SortOrder = table.Column<int>(type: "integer", nullable: false),
                     DraftExpiresAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     IsReminderSent = table.Column<bool>(type: "boolean", nullable: false),
+                    LastDelayAlertSentAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
@@ -524,6 +550,42 @@ namespace Planify.Infrastructure.Migrations
                         principalColumn: "Id");
                 });
 
+            migrationBuilder.CreateTable(
+                name: "PlanFeedbacks",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CommunityPlanId = table.Column<Guid>(type: "uuid", nullable: true),
+                    IsEffective = table.Column<bool>(type: "boolean", nullable: false),
+                    Reason = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    Suggestions = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    Rating = table.Column<int>(type: "integer", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlanFeedbacks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlanFeedbacks_CommunityPlans_CommunityPlanId",
+                        column: x => x.CommunityPlanId,
+                        principalTable: "CommunityPlans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_PlanFeedbacks_Plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "Plans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PlanFeedbacks_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_CommunityPlanLikes_CommunityPlanId",
                 table: "CommunityPlanLikes",
@@ -549,6 +611,21 @@ namespace Planify.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_CommunityPlans_UserId",
                 table: "CommunityPlans",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GeneralFeedbacks_Category",
+                table: "GeneralFeedbacks",
+                column: "Category");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GeneralFeedbacks_Status",
+                table: "GeneralFeedbacks",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GeneralFeedbacks_UserId",
+                table: "GeneralFeedbacks",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
@@ -580,6 +657,22 @@ namespace Planify.Infrastructure.Migrations
                 name: "IX_PlanCopies_UserId",
                 table: "PlanCopies",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanFeedbacks_CommunityPlanId",
+                table: "PlanFeedbacks",
+                column: "CommunityPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanFeedbacks_PlanId",
+                table: "PlanFeedbacks",
+                column: "PlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanFeedbacks_UserId_PlanId",
+                table: "PlanFeedbacks",
+                columns: new[] { "UserId", "PlanId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlanFrameworks_CreatedBy",
@@ -676,6 +769,9 @@ namespace Planify.Infrastructure.Migrations
                 name: "CommunityPlanLikes");
 
             migrationBuilder.DropTable(
+                name: "GeneralFeedbacks");
+
+            migrationBuilder.DropTable(
                 name: "Notifications");
 
             migrationBuilder.DropTable(
@@ -683,6 +779,9 @@ namespace Planify.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "PlanCopies");
+
+            migrationBuilder.DropTable(
+                name: "PlanFeedbacks");
 
             migrationBuilder.DropTable(
                 name: "PlanTasks");

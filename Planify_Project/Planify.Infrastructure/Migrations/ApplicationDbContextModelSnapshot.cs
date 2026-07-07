@@ -238,6 +238,54 @@ namespace Planify.Infrastructure.Migrations
                     b.ToTable("CommunityPlanLikes");
                 });
 
+            modelBuilder.Entity("Planify.Domain.Entities.GeneralFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GeneralFeedbacks");
+                });
+
             modelBuilder.Entity("Planify.Domain.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -360,6 +408,9 @@ namespace Planify.Infrastructure.Migrations
                     b.Property<bool>("IsReminderSent")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("LastDelayAlertSentAt")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<int>("Progress")
                         .HasColumnType("integer");
 
@@ -423,6 +474,50 @@ namespace Planify.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("PlanCopies");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CommunityPlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("IsEffective")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Suggestions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityPlanId");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("UserId", "PlanId")
+                        .IsUnique();
+
+                    b.ToTable("PlanFeedbacks");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
@@ -868,6 +963,15 @@ namespace Planify.Infrastructure.Migrations
                     b.Navigation("CommunityPlan");
                 });
 
+            modelBuilder.Entity("Planify.Domain.Entities.GeneralFeedback", b =>
+                {
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Planify.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
@@ -939,6 +1043,30 @@ namespace Planify.Infrastructure.Migrations
                     b.Navigation("CommunityPlan");
 
                     b.Navigation("NewPlan");
+                });
+
+            modelBuilder.Entity("Planify.Domain.Entities.PlanFeedback", b =>
+                {
+                    b.HasOne("Planify.Domain.Entities.CommunityPlan", "CommunityPlan")
+                        .WithMany()
+                        .HasForeignKey("CommunityPlanId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Planify.Domain.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Planify.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CommunityPlan");
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("Planify.Domain.Entities.PlanFramework", b =>
