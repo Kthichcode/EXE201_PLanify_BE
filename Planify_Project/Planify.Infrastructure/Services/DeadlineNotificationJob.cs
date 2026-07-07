@@ -252,5 +252,76 @@ public class DeadlineNotificationJob : BackgroundService
             await context.SaveChangesAsync();
             await notificationRepo.SaveChangesAsync();
         }
+
+        // 3. Phát hiện kế hoạch trễ tiến độ — gửi delay alert
+        await ProcessOverdueSubtasksAsync(context, notificationRepo);
+    }
+
+    /// <summary>
+    /// Quét các kế hoạch có ≥2 subtask đã trễ deadline (DueDate &lt; now, Status != "done").
+    /// Gửi thông báo delay_alert mỗi 24h/lần để tránh spam.
+    /// Notification chứa context (số task trễ, planId) để FE tự kích hoạt AI phân tích.
+    /// </summary>
+    private async Task ProcessOverdueSubtasksAsync(
+        ApplicationDbContext context,
+        INotificationRepository notificationRepo)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var alertCooldown = nowUtc.AddHours(-24); // Chỉ gửi lại sau 24h
+
+        // Lấy các plan active có ít nhất 1 subtask trễ, chưa gửi alert trong 24h gần nhất
+        var plansWithOverdue = await context.Plans
+            .Where(p => p.Status == "active"
+                     && (p.LastDelayAlertSentAt == null || p.LastDelayAlertSentAt < alertCooldown))
+            .Include(p => p.Tasks)
+            .ToListAsync();
+
+        var changed = false;
+
+        foreach (var plan in plansWithOverdue)
+        {
+            // Đếm subtask (có ParentTaskId) đã trễ và chưa hoàn thành
+            var overdueSubtasks = plan.Tasks
+                .Where(t => t.ParentTaskId != null
+                         && t.Status != "done"
+                         && t.DueDate.HasValue
+                         && t.DueDate.Value < nowUtc)
+                .ToList();
+
+            if (overdueSubtasks.Count < 2) continue;
+
+            // Tính số ngày còn lại đến deadline plan
+            int daysToDeadline = plan.Deadline.HasValue
+                ? (int)(plan.Deadline.Value - nowUtc).TotalDays
+                : 999;
+
+            // Tạo notification với metadata cho FE
+            var message = $"Kế hoạch '{plan.Title}' có {overdueSubtasks.Count} subtask đã trễ deadline. " +
+                          $"Nhấn để mở kế hoạch và để AI tự động tối ưu lại lịch trình.";
+
+            await notificationRepo.AddAsync(new Domain.Entities.Notification
+            {
+                UserId      = plan.UserId,
+                Title       = $"⚠️ Trễ tiến độ: {overdueSubtasks.Count} subtask chưa hoàn thành",
+                Message     = message,
+                Type        = "delay_alert",
+                ReferenceId = plan.Id   // FE dùng để điều hướng đến plan và trigger AI
+            });
+
+            // Đánh dấu đã gửi để tránh spam
+            plan.LastDelayAlertSentAt = nowUtc;
+            plan.UpdatedAt = nowUtc;
+            changed = true;
+
+            _logger.LogInformation(
+                "Delay alert sent: planId={PlanId}, overdueCount={Count}, daysToDeadline={Days}",
+                plan.Id, overdueSubtasks.Count, daysToDeadline);
+        }
+
+        if (changed)
+        {
+            await context.SaveChangesAsync();
+            await notificationRepo.SaveChangesAsync();
+        }
     }
 }

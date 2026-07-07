@@ -26,7 +26,13 @@ public class Plan
 
     public bool IsReminderSent { get; set; } = false;
 
-    
+    /// <summary>
+    /// Thời điểm gửi thông báo delay alert gần nhất.
+    /// Null = chưa từng gửi. Dùng để tránh spam thông báo (chỉ gửi lại sau 24h).
+    /// </summary>
+    public DateTime? LastDelayAlertSentAt { get; set; }
+
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planify.Application.DTOs.Community;
+using Planify.Application.DTOs.Feedback;
 using Planify.Application.Interfaces;
 using System;
 using System.Security.Claims;
@@ -13,10 +14,14 @@ namespace Planify.API.Controllers;
 public class CommunityPlansController : ControllerBase
 {
     private readonly ICommunityPlanService _communityPlanService;
+    private readonly IPlanFeedbackService _feedbackService;
 
-    public CommunityPlansController(ICommunityPlanService communityPlanService)
+    public CommunityPlansController(
+        ICommunityPlanService communityPlanService,
+        IPlanFeedbackService feedbackService)
     {
         _communityPlanService = communityPlanService;
+        _feedbackService      = feedbackService;
     }
 
     // ── Helper ──────────────────────────────────────────────────────────────
@@ -183,6 +188,43 @@ public class CommunityPlansController : ControllerBase
             var userId = RequireUserId();
             var result = await _communityPlanService.GetMyPublishedPlansAsync(userId);
             return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Đã có lỗi xảy ra.", details = ex.Message });
+        }
+    }
+
+    // ── Feedback (Khảo sát hiệu quả AI Plan) ───────────────────────────────
+
+    /// <summary>
+    /// Gửi khảo sát đánh giá hiệu quả kế hoạch AI sau khi publish.
+    /// Chỉ áp dụng cho plan được tạo bởi AI (IsAIGenerated = true).
+    /// Mỗi user chỉ được gửi 1 lần cho mỗi plan.
+    /// </summary>
+    [HttpPost("feedback")]
+    [Authorize]
+    public async Task<IActionResult> SubmitFeedback([FromBody] SubmitFeedbackDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        try
+        {
+            var userId = RequireUserId();
+            var result = await _feedbackService.SubmitFeedbackAsync(dto, userId);
+            return Ok(new { message = "Cảm ơn bạn đã gửi phản hồi!", feedback = result });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex)
         {

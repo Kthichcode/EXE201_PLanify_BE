@@ -233,6 +233,146 @@ public class AiChatController : ControllerBase
         }
     }
 
+    // ── POST /api/ai/analyze-delay ────────────────────────────────────────
+
+    /// <summary>
+    /// Phân tích tình trạng trễ tiến độ của plan và đề xuất tối ưu lại lịch trình (chưa lưu DB).
+    /// FE gọi tự động khi user bấm vào thông báo delay_alert.
+    /// AI trả về JSON plan đề xuất + strategy ("reschedule" | "extend_deadline") + giải thích.
+    /// </summary>
+    [HttpPost("analyze-delay")]
+    public async Task<IActionResult> AnalyzeDelay(
+        [FromBody] AnalyzeDelayRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null)
+            return Unauthorized(new { error = "Không xác định được user từ token." });
+
+        try
+        {
+            // 1. Load plan + tasks hiện tại
+            var currentPlan = await _planService.GetPlanByIdAsync(request.PlanId, userId.Value);
+            if (currentPlan is null)
+                return NotFound(new { error = $"Không tìm thấy kế hoạch với id={request.PlanId}." });
+
+            // 2. Tính số subtask trễ và số ngày còn lại đến deadline
+            var nowVn = DateTime.UtcNow.AddHours(7);
+            var overdueCount = currentPlan.Tasks?
+                .Where(t => t.ParentTaskId != null
+                         && t.Status != "done"
+                         && t.DueDate.HasValue
+                         && t.DueDate.Value.ToLocalTime() < nowVn)
+                .Count() ?? 0;
+
+            int daysToDeadline = currentPlan.Deadline.HasValue
+                ? (int)(currentPlan.Deadline.Value.ToLocalTime() - nowVn).TotalDays
+                : 999;
+
+            // 3. Serialize plan hiện tại để gửi AI
+            var currentPlanJson = System.Text.Json.JsonSerializer.Serialize(currentPlan,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = null });
+
+            // 4. AI phân tích — CHỈ trả về đề xuất, KHÔNG lưu DB
+            var aiResponse = await _aiChatService.AnalyzeDelayAsync(
+                currentPlanJson, overdueCount, daysToDeadline, cancellationToken);
+
+            // 5. Đọc strategy từ metadata AI trả về
+            var strategy = aiResponse.PlanData?["metadata"]?["strategy"]?.GetValue<string>()
+                        ?? (daysToDeadline > 7 ? "reschedule" : "extend_deadline");
+
+            _logger.LogInformation(
+                "Delay analysis done: planId={PlanId}, overdueCount={Count}, daysToDeadline={Days}, strategy={Strategy}, elapsedMs={Ms}",
+                request.PlanId, overdueCount, daysToDeadline, strategy, aiResponse.ElapsedMs);
+
+            return Ok(new AnalyzeDelayResponseDto
+            {
+                ProposedPlanData = aiResponse.PlanData,
+                Message          = aiResponse.Message,
+                Strategy         = strategy,
+                OverdueCount     = overdueCount,
+                DaysToDeadline   = daysToDeadline,
+                Model            = aiResponse.Model,
+                ElapsedMs        = aiResponse.ElapsedMs
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Analyze delay thất bại");
+            return StatusCode(503, new { error = ex.Message });
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(408, new { error = "AI xử lý quá lâu. Vui lòng thử lại." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Analyze delay thất bại không mong đợi");
+            return StatusCode(500, new { error = ex.Message, details = ex.InnerException?.Message });
+        }
+    }
+
+    // ── POST /api/ai/apply-delay-fix ──────────────────────────────────────
+
+    /// <summary>
+    /// User bấm "Đồng ý" sau khi xem đề xuất AI → apply JSON plan đề xuất vào DB.
+    /// Dùng lại RefreshDraftWithRefinedPlanAsync để bảo toàn tiến độ đã làm.
+    /// </summary>
+    [HttpPost("apply-delay-fix")]
+    public async Task<IActionResult> ApplyDelayFix(
+        [FromBody] ApplyDelayFixRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null)
+            return Unauthorized(new { error = "Không xác định được user từ token." });
+
+        try
+        {
+            // Dùng lại RefreshDraftWithRefinedPlanAsync — đã có logic bảo toàn tiến độ (snapshot/restore)
+            var saveDto = new SaveAiPlanRequestDto { PlanData = request.PlanData };
+            var updatedPlan = await _planService.RefreshDraftWithRefinedPlanAsync(
+                request.PlanId, saveDto, userId.Value);
+
+            _logger.LogInformation(
+                "Delay fix applied: planId={PlanId}, userId={UserId}",
+                updatedPlan.Id, userId.Value);
+
+            return Ok(new
+            {
+                message = "Kế hoạch đã được tối ưu lại thành công!",
+                planId  = updatedPlan.Id,
+                plan    = updatedPlan
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Apply delay fix thất bại");
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Apply delay fix thất bại không mong đợi");
+            return StatusCode(500, new { error = ex.Message, details = ex.InnerException?.Message });
+        }
+    }
+
     // ── Private Helpers ───────────────────────────────────────────────────
 
     /// <summary>
