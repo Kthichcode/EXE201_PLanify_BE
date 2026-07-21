@@ -13,6 +13,19 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fix: Render.com Linux containers have a low inotify instance limit (128).
+// ASP.NET Core's default config setup creates file watchers for appsettings*.json,
+// which exhausts that limit and crashes the process.
+// Disable reloadOnChange on all JSON config sources to prevent this.
+builder.Host.ConfigureAppConfiguration((_, config) =>
+{
+    foreach (var source in config.Sources
+                 .OfType<Microsoft.Extensions.Configuration.Json.JsonConfigurationSource>())
+    {
+        source.ReloadOnChange = false;
+    }
+});
+
 // CORS
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
