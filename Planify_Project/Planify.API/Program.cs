@@ -153,26 +153,4 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-var retries = 0;
-const int maxRetries = 12;
-while (true)
-{
-    try
-    {
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.MigrateAsync();
-        Console.WriteLine("✅ Database migration applied.");
-        break;
-    }
-    catch (Exception ex) when (retries < maxRetries)
-    {
-        retries++;
-        Console.WriteLine($"⚠️  DB not ready (attempt {retries}/{maxRetries}): {ex.Message}");
-        await Task.Delay(TimeSpan.FromSeconds(10));
-    }
-}
-
-await DataSeeder.SeedAsync(app.Services);
-
 app.Run();
