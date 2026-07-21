@@ -281,4 +281,23 @@ public async Task<IActionResult> GetPlans()
             return StatusCode(500, new { error = "Có lỗi khi lấy thống kê.", details = ex.Message });
         }
     }
+
+    // ── GET /api/plans/system-stats ──────────────────────────────────────────────────
+    /// <summary>
+    /// Lấy thống kê kế hoạch của toàn hệ thống (Dành cho Admin Dashboard).
+    /// </summary>
+    [HttpGet("system-stats")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetSystemStats(CancellationToken ct)
+    {
+        try
+        {
+            var stats = await _planService.GetSystemStatsAsync(ct);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi khi lấy thống kê hệ thống.", details = ex.Message });
+        }
+    }
 }

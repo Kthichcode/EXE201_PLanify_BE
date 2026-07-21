@@ -31,4 +31,10 @@ public interface IPlanRepository
     /// tổng số plan active, số plan đã hoàn thành, số plan đang thực hiện.
     /// </summary>
     Task<(int Total, int Completed, int Active)> GetStatsByUserIdAsync(Guid userId, CancellationToken ct = default);
+    /// <summary>
+    /// Thống kê toàn hệ thống (không phân biệt user): 
+    /// tổng số plan active, số plan đã hoàn thành, số plan đang thực hiện.
+    /// </summary>
+    Task<(int Total, int Completed, int Active)> GetSystemStatsAsync(CancellationToken ct = default);
 }
+

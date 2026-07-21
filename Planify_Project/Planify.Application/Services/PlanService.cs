@@ -842,4 +842,15 @@ public class PlanService : IPlanService
             ActivePlans    = active
         };
     }
+
+    public async Task<PlanStatsDto> GetSystemStatsAsync(CancellationToken ct = default)
+    {
+        var (total, completed, active) = await _planRepository.GetSystemStatsAsync(ct);
+        return new PlanStatsDto
+        {
+            TotalPlans     = total,
+            CompletedPlans = completed,
+            ActivePlans    = active
+        };
+    }
 }

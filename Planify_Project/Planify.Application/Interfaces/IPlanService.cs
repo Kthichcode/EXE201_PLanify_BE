@@ -27,4 +27,7 @@ public interface IPlanService
 
     /// <summary>Lấy thống kê kế hoạch của user: tổng, đã hoàn thành, đang thực hiện.</summary>
     Task<PlanStatsDto> GetStatsAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Lấy thống kê kế hoạch của toàn hệ thống.</summary>
+    Task<PlanStatsDto> GetSystemStatsAsync(CancellationToken ct = default);
 }

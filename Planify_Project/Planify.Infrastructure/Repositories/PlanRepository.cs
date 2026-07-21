@@ -88,4 +88,24 @@ public class PlanRepository : IPlanRepository
 
         return (total, completed, active);
     }
+
+    public async Task<(int Total, int Completed, int Active)> GetSystemStatsAsync(CancellationToken ct = default)
+    {
+        var counts = await _context.Plans
+            .Where(p => p.Status != "draft"
+                     && p.Status != "discarded")
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total     = g.Count(),
+                Completed = g.Count(p => p.Status == "completed" || p.Progress >= 100)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var total     = counts?.Total     ?? 0;
+        var completed = counts?.Completed ?? 0;
+        var active    = total - completed;
+
+        return (total, completed, active);
+    }
 }
