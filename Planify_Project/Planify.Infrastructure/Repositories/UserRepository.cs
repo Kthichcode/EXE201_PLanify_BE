@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Planify.Domain.Interfaces;
 using Planify.Infrastructure.Identity;
 
@@ -90,9 +91,52 @@ public class UserRepository : IUserRepository
         return result.Succeeded;
     }
 
+    public async Task<UserGrowthRawDto> GetUserGrowthAsync(DateTime from, DateTime to)
+    {
+        var toEndOfDay = to.Date.AddDays(1).AddTicks(-1); // inclusive end
+        var now        = DateTime.UtcNow;
+        var sevenDaysAgo  = now.AddDays(-7);
+        var thirtyDaysAgo = now.AddDays(-30);
+
+        // Khoảng trước tương đương để tính growth rate
+        var rangeDays = (to.Date - from.Date).TotalDays + 1;
+        var prevFrom  = from.AddDays(-rangeDays);
+        var prevTo    = from.AddTicks(-1);
+
+        var allUsers = _userManager.Users.AsQueryable();
+
+        var totalUsers        = await allUsers.CountAsync();
+        var newInRange        = await allUsers.CountAsync(u => u.CreatedAt >= from && u.CreatedAt <= toEndOfDay);
+        var newLast7          = await allUsers.CountAsync(u => u.CreatedAt >= sevenDaysAgo);
+        var newLast30         = await allUsers.CountAsync(u => u.CreatedAt >= thirtyDaysAgo);
+        var previousCount     = await allUsers.CountAsync(u => u.CreatedAt >= prevFrom && u.CreatedAt <= prevTo);
+
+        // Group by ngày (dùng EF, tránh client-side grouping)
+        var rawDaily = await allUsers
+            .Where(u => u.CreatedAt >= from && u.CreatedAt <= toEndOfDay)
+            .Select(u => new { u.CreatedAt })
+            .ToListAsync();
+
+        var dailyBreakdown = rawDaily
+            .GroupBy(u => DateOnly.FromDateTime(u.CreatedAt))
+            .Select(g => (Date: g.Key, Count: g.Count()))
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        return new UserGrowthRawDto(
+            TotalUsers:        totalUsers,
+            NewUsersInRange:   newInRange,
+            NewUsersLast7Days: newLast7,
+            NewUsersLast30Days:newLast30,
+            PreviousRangeCount:previousCount,
+            DailyBreakdown:    dailyBreakdown
+        );
+    }
+
     // ── Mapper ───────────────────────────────────────────────────────────────
 
     private static UserAccountDto ToDto(ApplicationUser user) =>
         new(user.Id, user.Email!, user.FullName, user.EmailConfirmed,
-            user.OnboardingStatus, user.OnboardingStep);
+            user.OnboardingStatus, user.OnboardingStep, user.CreatedAt);
 }
+

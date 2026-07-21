@@ -26,6 +26,12 @@ public interface IUserRepository
 
     /// <summary>Cập nhật trạng thái và bước onboarding của user.</summary>
     Task<bool> UpdateOnboardingAsync(Guid userId, string status, int step);
+
+    /// <summary>
+    /// Trả về thống kê tăng trưởng user: tổng số, số mới theo khoảng thời gian,
+    /// và số đăng ký theo từng ngày trong khoảng [from, to].
+    /// </summary>
+    Task<UserGrowthRawDto> GetUserGrowthAsync(DateTime from, DateTime to);
 }
 
 /// <summary>
@@ -38,5 +44,16 @@ public record UserAccountDto(
     string FullName,
     bool   EmailConfirmed,
     string OnboardingStatus  = "not_started",
-    int    OnboardingStep    = 0
+    int    OnboardingStep    = 0,
+    DateTime CreatedAt       = default
+);
+
+/// <summary>Raw data thống kê tăng trưởng user từ repository.</summary>
+public record UserGrowthRawDto(
+    int TotalUsers,
+    int NewUsersInRange,
+    int NewUsersLast7Days,
+    int NewUsersLast30Days,
+    int PreviousRangeCount,
+    List<(DateOnly Date, int Count)> DailyBreakdown
 );

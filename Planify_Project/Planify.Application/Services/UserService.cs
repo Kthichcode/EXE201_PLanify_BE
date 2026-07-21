@@ -100,4 +100,49 @@ public class UserService : IUserService
             new OnboardingStatusDto { Status = dto.Status, Step = dto.Step },
             "Cập nhật onboarding thành công.", 200);
     }
+
+    public async Task<ResponseDto<UserGrowthStatsDto>> GetUserGrowthStatsAsync(DateTime? from, DateTime? to)
+    {
+        // Mặc định: 30 ngày gần nhất (theo UTC)
+        var utcNow = DateTime.UtcNow;
+        var dateTo   = to?.Date   ?? utcNow.Date;
+        var dateFrom = from?.Date ?? dateTo.AddDays(-29);
+
+        if (dateFrom > dateTo)
+            return ResponseDto<UserGrowthStatsDto>.Fail("Ngày bắt đầu phải trước ngày kết thúc.", 400);
+
+        var raw = await _userRepo.GetUserGrowthAsync(
+            dateFrom.ToUniversalTime(),
+            dateTo.ToUniversalTime());
+
+        // Tính growth rate so với khoảng trước
+        double? growthRate = null;
+        if (raw.PreviousRangeCount > 0)
+            growthRate = Math.Round((raw.NewUsersInRange - raw.PreviousRangeCount) * 100.0 / raw.PreviousRangeCount, 2);
+
+        // Điền đủ tất cả ngày trong khoảng (kể cả ngày không có đăng ký)
+        var dailyDict = raw.DailyBreakdown.ToDictionary(x => x.Date, x => x.Count);
+        var allDays   = new List<DailyRegistrationDto>();
+        for (var d = dateFrom; d <= dateTo; d = d.AddDays(1))
+        {
+            var key = DateOnly.FromDateTime(d);
+            allDays.Add(new DailyRegistrationDto
+            {
+                Date  = key,
+                Count = dailyDict.GetValueOrDefault(key, 0)
+            });
+        }
+
+        var result = new UserGrowthStatsDto
+        {
+            TotalUsers         = raw.TotalUsers,
+            NewUsers           = raw.NewUsersInRange,
+            NewUsersLast7Days  = raw.NewUsersLast7Days,
+            NewUsersLast30Days = raw.NewUsersLast30Days,
+            GrowthRatePercent  = growthRate,
+            DailyRegistrations = allDays
+        };
+
+        return ResponseDto<UserGrowthStatsDto>.Success(result, "Lấy thống kê tăng trưởng thành công.", 200);
+    }
 }

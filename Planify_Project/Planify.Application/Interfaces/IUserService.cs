@@ -14,4 +14,10 @@ public interface IUserService
 
     /// <summary>Cập nhật trạng thái và bước onboarding (start / next step / complete / skip / stop).</summary>
     Task<ResponseDto<OnboardingStatusDto>> UpdateOnboardingAsync(string userId, UpdateOnboardingDto dto);
+
+    /// <summary>
+    /// Thống kê tăng trưởng người dùng theo khoảng thời gian.
+    /// Nếu không truyền from/to sẽ mặc định 30 ngày gần nhất.
+    /// </summary>
+    Task<ResponseDto<UserGrowthStatsDto>> GetUserGrowthStatsAsync(DateTime? from, DateTime? to);
 }
