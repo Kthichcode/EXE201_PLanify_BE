@@ -7,6 +7,13 @@ namespace Planify.Application.DTOs.AI;
 public class AnalyzeDelayRequestDto
 {
     public Guid PlanId { get; set; }
+
+    /// <summary>
+    /// Nếu FE truyền vào, BE sẽ ép AI dùng strategy này thay vì tự chọn.
+    /// Giá trị hợp lệ: "reschedule" | "extend_deadline"
+    /// Null = để AI tự quyết định.
+    /// </summary>
+    public string? ForceStrategy { get; set; }
 }
 
 /// <summary>

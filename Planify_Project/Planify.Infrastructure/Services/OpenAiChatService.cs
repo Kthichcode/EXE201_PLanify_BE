@@ -332,21 +332,39 @@ NỘI DUNG TEMPLATE:
         string currentPlanJson,
         int overdueCount,
         int daysToDeadline,
+        string? forceStrategy = null,
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
 
         var today = DateTime.UtcNow.AddHours(7).ToString("yyyy-MM-dd");
 
-        var strategyHint = daysToDeadline > 7
-            ? "Dồn các task/subtask trễ sang ngày khác (reschedule), giữ nguyên Deadline tổng."
-            : $"Deadline chỉ còn {daysToDeadline} ngày. Hãy mở rộng Deadline tối đa 14 ngày và sắp xếp lại lịch trình.";
+        // Xác định strategy hint: nếu FE ép thì dùng đúng strategy đó, ngược lại AI tự chọn theo ngưỡng 7 ngày
+        string strategyHint;
+        if (!string.IsNullOrEmpty(forceStrategy))
+        {
+            strategyHint = forceStrategy == "extend_deadline"
+                ? $"CHIẾN LƯỢC BẮT BUỘC: extend_deadline — Mở rộng Deadline tổng thêm tối đa 14 ngày. " +
+                  $"SAU ĐÓ reschedule TẤT CẢ subtask bị trễ (DueDate < hôm nay) vào khoảng thời gian từ hôm nay đến Deadline mới. " +
+                  $"KHÔNG được giữ nguyên DueDate cũ của bất kỳ subtask nào đã quá hạn."
+                : $"CHIẾN LƯỢC BẮT BUỘC: reschedule — Dồn TẤT CẢ subtask bị trễ (DueDate < hôm nay) sang các ngày còn trống trước Deadline tổng. " +
+                  $"KHÔNG thay đổi Deadline tổng của plan.";
+        }
+        else
+        {
+            strategyHint = daysToDeadline > 7
+                ? $"Gợi ý chiến lược: reschedule — Dồn TẤT CẢ subtask bị trễ (DueDate < hôm nay) sang các ngày còn trống trước Deadline tổng. KHÔNG thay đổi Deadline tổng."
+                : $"Gợi ý chiến lược: extend_deadline — Deadline chỉ còn {daysToDeadline} ngày. Mở rộng Deadline thêm tối đa 14 ngày, " +
+                  $"SAU ĐÓ reschedule TẤT CẢ subtask bị trễ (DueDate < hôm nay) vào khoảng thời gian từ hôm nay đến Deadline mới.";
+        }
 
         var userMessage =
             $"""
             Ngày hôm nay: {today}
-            Tình trạng: {overdueCount} subtask đã trễ deadline. Deadline tổng còn {daysToDeadline} ngày.
-            Gợi ý chiến lược: {strategyHint}
+            Tình trạng: {overdueCount} subtask đã trễ deadline (DueDate < hôm nay). Deadline tổng còn {daysToDeadline} ngày.
+            {strategyHint}
+
+            LƯU Ý QUAN TRỌNG: Nếu strategy là extend_deadline, bạn PHẢI cập nhật DueDate của TẤT CẢ subtask có DueDate < hôm nay ({today}) sang ngày mới trong khoảng [hôm nay, Deadline mới].
 
             Kế hoạch hiện tại (JSON):
             {currentPlanJson}
@@ -361,8 +379,8 @@ NỘI DUNG TEMPLATE:
         };
 
         _logger.LogInformation(
-            "Analyzing plan delay via OpenAI: overdueCount={OverdueCount}, daysToDeadline={Days}",
-            overdueCount, daysToDeadline);
+            "Analyzing plan delay via OpenAI: overdueCount={OverdueCount}, daysToDeadline={Days}, forceStrategy={ForceStrategy}",
+            overdueCount, daysToDeadline, forceStrategy ?? "auto");
 
         var reply = await CallOpenAiAsync(messages, maxTokens: 6000, cancellationToken);
 

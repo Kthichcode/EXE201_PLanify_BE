@@ -257,16 +257,17 @@ public class AiChatController : ControllerBase
                 return NotFound(new { error = $"Không tìm thấy kế hoạch với id={request.PlanId}." });
 
             // 2. Tính số subtask trễ và số ngày còn lại đến deadline
-            var nowVn = DateTime.UtcNow.AddHours(7);
+            // So sánh UTC với UTC trực tiếp — không ToLocalTime() để tránh double-convert timezone.
+            var nowUtc = DateTime.UtcNow;
             var overdueCount = currentPlan.Tasks?
                 .Where(t => t.ParentTaskId != null
                          && t.Status != "done"
                          && t.DueDate.HasValue
-                         && t.DueDate.Value.ToLocalTime() < nowVn)
+                         && t.DueDate.Value.ToUniversalTime() < nowUtc)
                 .Count() ?? 0;
 
             int daysToDeadline = currentPlan.Deadline.HasValue
-                ? (int)(currentPlan.Deadline.Value.ToLocalTime() - nowVn).TotalDays
+                ? (int)(currentPlan.Deadline.Value.ToUniversalTime() - nowUtc).TotalDays
                 : 999;
 
             // 3. Serialize plan hiện tại để gửi AI
@@ -275,7 +276,9 @@ public class AiChatController : ControllerBase
 
             // 4. AI phân tích — CHỈ trả về đề xuất, KHÔNG lưu DB
             var aiResponse = await _aiChatService.AnalyzeDelayAsync(
-                currentPlanJson, overdueCount, daysToDeadline, cancellationToken);
+                currentPlanJson, overdueCount, daysToDeadline,
+                request.ForceStrategy,
+                cancellationToken);
 
             // 5. Đọc strategy từ metadata AI trả về
             var strategy = aiResponse.PlanData?["metadata"]?["strategy"]?.GetValue<string>()

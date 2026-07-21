@@ -37,5 +37,6 @@ public interface IAiChatService
     ///   - "extend_deadline": đề xuất mở rộng deadline khi deadline đang đến gần.
     /// Trả về JSON plan đề xuất (chưa lưu DB) + strategy + giải thích.
     /// </summary>
-    Task<GeneratePlanResponseDto> AnalyzeDelayAsync(string currentPlanJson, int overdueCount, int daysToDeadline, CancellationToken cancellationToken = default);
+    /// <param name="forceStrategy">Nếu không null, ép AI dùng đúng strategy này thay vì tự chọn.</param>
+    Task<GeneratePlanResponseDto> AnalyzeDelayAsync(string currentPlanJson, int overdueCount, int daysToDeadline, string? forceStrategy = null, CancellationToken cancellationToken = default);
 }
