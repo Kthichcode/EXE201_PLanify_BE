@@ -831,4 +831,15 @@ public class PlanService : IPlanService
 
         await RecalculatePlanProgressAsync(planId);
     }
+
+    public async Task<PlanStatsDto> GetStatsAsync(Guid userId, CancellationToken ct = default)
+    {
+        var (total, completed, active) = await _planRepository.GetStatsByUserIdAsync(userId, ct);
+        return new PlanStatsDto
+        {
+            TotalPlans     = total,
+            CompletedPlans = completed,
+            ActivePlans    = active
+        };
+    }
 }

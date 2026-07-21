@@ -258,4 +258,27 @@ public async Task<IActionResult> GetPlans()
             return StatusCode(500, new { error = "Có lỗi xảy ra khi xóa nhiệm vụ.", details = ex.Message });
         }
     }
+
+    // ── GET /api/plans/stats ──────────────────────────────────────────────────
+    /// <summary>
+    /// Lấy thống kê kế hoạch của user đang đăng nhập:
+    /// tổng số kế hoạch đã tạo, số đã hoàn thành, số đang thực hiện, tỉ lệ hoàn thành.
+    /// </summary>
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats(CancellationToken ct)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            return Unauthorized(new { error = "Không xác định được user từ token." });
+
+        try
+        {
+            var stats = await _planService.GetStatsAsync(userId, ct);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Có lỗi khi lấy thống kê.", details = ex.Message });
+        }
+    }
 }

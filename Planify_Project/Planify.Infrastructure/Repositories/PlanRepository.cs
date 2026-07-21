@@ -65,4 +65,27 @@ public class PlanRepository : IPlanRepository
             }
         });
     }
+
+    public async Task<(int Total, int Completed, int Active)> GetStatsByUserIdAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        // Lấy 1 lần, lọc ở memory — tránh nhiều round-trip DB
+        var counts = await _context.Plans
+            .Where(p => p.UserId == userId
+                     && p.Status != "draft"
+                     && p.Status != "discarded")
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total     = g.Count(),
+                Completed = g.Count(p => p.Status == "completed" || p.Progress >= 100)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var total     = counts?.Total     ?? 0;
+        var completed = counts?.Completed ?? 0;
+        var active    = total - completed;
+
+        return (total, completed, active);
+    }
 }

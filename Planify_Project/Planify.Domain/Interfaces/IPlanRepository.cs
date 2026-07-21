@@ -25,4 +25,10 @@ public interface IPlanRepository
 
     /// <summary>Thực thi action trong transaction — tự động commit/rollback.</summary>
     Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default);
+
+    /// <summary>
+    /// Thống kê kế hoạch của user:
+    /// tổng số plan active, số plan đã hoàn thành, số plan đang thực hiện.
+    /// </summary>
+    Task<(int Total, int Completed, int Active)> GetStatsByUserIdAsync(Guid userId, CancellationToken ct = default);
 }

@@ -24,4 +24,7 @@ public interface IPlanService
 
     Task<PlanTaskDto> UpdatePlanTaskAsync(Guid planId, Guid taskId, UpdatePlanTaskDto dto, Guid userId);
     Task DeletePlanTaskAsync(Guid planId, Guid taskId, Guid userId);
+
+    /// <summary>Lấy thống kê kế hoạch của user: tổng, đã hoàn thành, đang thực hiện.</summary>
+    Task<PlanStatsDto> GetStatsAsync(Guid userId, CancellationToken ct = default);
 }
