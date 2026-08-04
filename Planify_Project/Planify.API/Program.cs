@@ -11,12 +11,15 @@ using System.Text;
 // AI-returned date strings (e.g. "2024-01-01") parse as Kind=Unspecified → need legacy mode.
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
+// Fix: Render.com Linux containers have a low inotify instance limit (128).
+// ASP.NET Core's WebApplication.CreateBuilder() immediately starts watching appsettings*.json
+// via FileSystemWatcher (inotify on Linux), which exhausts the system limit and crashes.
+// Setting this env var BEFORE CreateBuilder() disables all inotify-based file watching.
+Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "true");
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Fix: Render.com Linux containers have a low inotify instance limit (128).
-// ASP.NET Core's default config setup creates file watchers for appsettings*.json,
-// which exhausts that limit and crashes the process.
-// Disable reloadOnChange on all JSON config sources to prevent this.
+// Additionally disable reload-on-change for all JSON config sources.
 builder.Host.ConfigureAppConfiguration((_, config) =>
 {
     foreach (var source in config.Sources
